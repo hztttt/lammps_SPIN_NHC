@@ -144,6 +144,8 @@ FixSurfaceGlobal::FixSurfaceGlobal(LAMMPS *lmp, int narg, char **arg) :
   models = nullptr;
   nmodel = maxmodel = 0;
   heat_flag = 0;
+  use_history = 0;
+  size_history = -1;
 
   while (iarg < narg) {
     if (strcmp(arg[iarg],"model") == 0) {
@@ -152,10 +154,10 @@ FixSurfaceGlobal::FixSurfaceGlobal(LAMMPS *lmp, int narg, char **arg) :
       if (nmodel == maxmodel) {
         maxmodel += DELTAMODEL;
         modeltypes = (ModelTypes *)
-          memory->srealloc(models,maxmodel*sizeof(ModelTypes),"surf/gloabl:modeltypes");
+          memory->srealloc(models,maxmodel*sizeof(ModelTypes),"surf/global:modeltypes");
         models = (Granular_NS::GranularModel **)
           memory->srealloc(models,maxmodel*sizeof(Granular_NS::GranularModel *),
-                           "surf/gloabl:models");
+                           "surf/global:models");
       }
 
       models[nmodel] = model = new GranularModel(lmp);
@@ -198,7 +200,7 @@ FixSurfaceGlobal::FixSurfaceGlobal(LAMMPS *lmp, int narg, char **arg) :
           } else if (strcmp(arg[iarg], "heat") == 0) {
             iarg = model->add_sub_model(arg, iarg + 1, narg, HEAT);
             heat_flag = 1;
-          } else if (strcmp(arg[iarg],"limit_damping") == 0) {
+          } else if (strcmp(arg[iarg], "limit_damping") == 0) {
             model->limit_damping = 1;
             iarg++;
           } else break;
@@ -208,18 +210,18 @@ FixSurfaceGlobal::FixSurfaceGlobal(LAMMPS *lmp, int narg, char **arg) :
       // define default damping sub model
       // if unspecified, takes no args
       // JOEL NOTE: is damping_model check only for granular or also classic ?
+      //    ANSWER: it's performed for both, but the classic model always has damping
 
       if (!model->damping_model) model->construct_sub_model("viscoelastic", DAMPING);
 
       model->init();
 
-      // JOEL NOTE: do size_history and use_history apply to each model or all models ?
+      // JOEL NOTE: do size_history and use_history apply to each model or all models?
+      //    ANSWER: all models, logic updated below
 
-      size_history = model->size_history;
-      if (model->beyond_contact) size_history += 1;   // track if particle is touching
-      if (size_history == 0) use_history = 0;
-      else use_history = 1;
-
+      if (model->beyond_contact) size_history = MAX(size_history + 1, model->size_history);
+      else size_history = MAX(size_history, model->size_history);
+      if (model->size_history != 0) use_history = 1;
     } else break;
   }
 
