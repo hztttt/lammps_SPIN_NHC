@@ -225,8 +225,8 @@ class FixSurfaceLocal : public Fix {
   double invbinx,invbiny,invbinz;  // inverse of bin size
   double binlo[3],binhi[3];        // bounds of region that is binned
 
-  double epssq;                // distance tolerance for end pts
-                               // from different lines to be connected
+  double eps,epssq;            // distance tolerance for matching 2 points
+                               // for different lines/tris to be connected
 
   int nmatch;                  // # of line connections
   int nmatch1,nmatch2;         // # of tri connections
@@ -269,7 +269,8 @@ class FixSurfaceLocal : public Fix {
 
   void connectivity2d_complete();
   void connectivity3d_complete();
-  int samepoint(double *, double *);
+  int same_point(double *, double *);
+  void epsilon_calculate();
 };
 
 }

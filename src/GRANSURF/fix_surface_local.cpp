@@ -33,14 +33,10 @@ using namespace MathConst;
 
 // NOTE: add input keyword option for multiple mol/STL files, like FSG
 // NOTE: add optional flat keyword
-// NOTE: need to populate rest of Connect2d vectors in connectivity2d/3d_complete()
-//       after complete, how to propagate info to ghost connections
 // NOTE: add debug method here and in global to print out full Connect2d/3d for each line/tri
 //       so can debug/compare between global and local
-// NOTE: set exact size for comm_border, after Connect23/3d is built
 // NOTE: need one allocater for ints, one for tagints ?
 
-// NOTE: epsilon should be defined as fraction of max surf size ?
 // NOTE: change defines to static const here and in global
 // NOTE: what if lines/tris already exist (from data file)
 //       when read more from STL or molecule file ?
@@ -50,7 +46,7 @@ using namespace MathConst;
 // NOTE: total bin count for Rvous seems too large when small # of surfs - check nbins ?
 // NOTE: make DELTA values bigger when done testing
 // NOTE: num in point_match() is just for debugging, can remove it
-// NOTE: call to domain->remap() in assign2d/3d() will wrap new line/tri particles by PBC
+// NOTE: call to domain->remap() in assign2d/3d() will wrap new mol/STL line/tri particles by PBC
 //       is that what we want ?   not the case for fix surf/global lines/tris
 
 #define EPSILON 0.001
@@ -122,6 +118,7 @@ FixSurfaceLocal::FixSurfaceLocal(LAMMPS *lmp, int narg, char **arg) :
   flatthresh = FLATTHRESH;
   
   flag_complete = 0;
+  epssq = -1.0;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -275,9 +272,50 @@ void FixSurfaceLocal::post_constructor()
   }
 
   // set max size for comm of connection info
+  // 2d = 2 end points, 4 vectors, each of length npmaxall
+  // 3d = 3 edges, 4 vectors, each of length nemaxall
+  //      plus 3 corner points, 2 vectors, each of length ncmaxall
+  
+  if (dimension == 2) {
+    int nlocal = atom->nlocal;
+    int *line = atom->line;
+    int iconnect;
+    
+    int npmax = 0;
+    for (int i = 0; i < nlocal; i++) {
+      if (line[i] < 0) continue;
+      iconnect = atom2connect[i];
+      npmax = MAX(npmax,connect2d[iconnect].np1);
+      npmax = MAX(npmax,connect2d[iconnect].np2);
+    }
 
-  if (dimension == 2) comm_border = 4 + 2*12;
-  else comm_border = 8 + 6*12;
+    int npmaxall;
+    MPI_Allreduce(&npmax,&npmaxall,1,MPI_INT,MPI_MAX,world);
+    comm_border = 3 + 2*4*npmaxall;
+    
+  } else if (dimension== 3) { 
+    int nlocal = atom->nlocal;
+    int *tri = atom->tri;
+    int iconnect;
+    
+    int nemax = 0;
+    int ncmax = 0;
+    for (int i = 0; i < nlocal; i++) {
+      if (tri[i] < 0) continue;
+      iconnect = atom2connect[i];
+      nemax = MAX(nemax,connect3d[iconnect].ne1);
+      nemax = MAX(nemax,connect3d[iconnect].ne2);
+      nemax = MAX(nemax,connect3d[iconnect].ne3);
+      ncmax = MAX(ncmax,connect3d[iconnect].nc1);
+      ncmax = MAX(ncmax,connect3d[iconnect].nc2);
+      ncmax = MAX(ncmax,connect3d[iconnect].nc3);
+    }
+
+    int nemaxall,ncmaxall;
+    MPI_Allreduce(&nemax,&nemaxall,1,MPI_INT,MPI_MAX,world);
+    MPI_Allreduce(&ncmax,&ncmaxall,1,MPI_INT,MPI_MAX,world);
+    comm_border = 4 + 3*4*nemaxall + 3*2*ncmaxall;
+  }
 
   // output stats, same as FSG
   
@@ -1174,24 +1212,17 @@ void FixSurfaceLocal::connectivity2d_local()
   if (!avec_line)
     error->all(FLERR,"Fix surface/local NULL requires atom style line");
 
-  // epssq = square of EPSILON fraction of minimum line length
-
-  AtomVecLine::Bonus *bonus = avec_line->bonus;
-  int *line = atom->line;
-  int nlocal = atom->nlocal;
-
-  double minlen = BIG;
-  for (i = 0; i < nlocal; i++)
-    if (line[i] >= 0) minlen = MIN(minlen,bonus[line[i]].length);
-
-  double eps;
-  MPI_Allreduce(&minlen,&eps,1,MPI_DOUBLE,MPI_MIN,world);
-  eps *= EPSILON;
-  epssq = eps*eps;
+  // calculate epssq = square of EPSILON fraction of minimum line length
+  // for use in point_match()
+  
+  if (epssq < 0.0) epsilon_calculate();
 
   // count owned lines
   // error check for no lines on any proc
 
+  int *line = atom->line;
+  int nlocal = atom->nlocal;
+  
   int nline = 0;
   for (i = 0; i < nlocal; i++)
     if (line[i] >= 0) nline++;
@@ -1465,23 +1496,15 @@ void FixSurfaceLocal::connectivity3d_local()
     error->all(FLERR,"Fix surface/local NULL requires atom style tri");
 
   // epssq = square of EPSILON fraction of minimum tri diameter
-
-  double *radius = atom->radius;
-  int *tri = atom->tri;
-  int nlocal = atom->nlocal;
-
-  double minlen = BIG;
-  for (i = 0; i < nlocal; i++)
-    if (tri[i] >= 0) minlen = MIN(minlen,radius[i]);
-  minlen *= 2.0;
-
-  double eps;
-  MPI_Allreduce(&minlen,&eps,1,MPI_DOUBLE,MPI_MIN,world);
-  eps *= EPSILON;
-  epssq = eps*eps;
-
+  // for use in point_match()
+  
+  if (epssq < 0.0) epsilon_calculate();
+  
   // count owned triangles
   // error check for no tris on any proc
+
+  int *tri = atom->tri;
+  int nlocal = atom->nlocal;
 
   int ntri = 0;
   for (i = 0; i < nlocal; i++)
@@ -1632,7 +1655,7 @@ void FixSurfaceLocal::connectivity3d_local()
   memory->sfree(inbuf);
 
   // loop over received Rvous datums
-  // n1/n2/n3_counts = # of connections for each conner point on my tris
+  // n1/n2/n3_counts = # of connections for each corner point on my tris
   // this will overcount (potentially by 8x) due to bins overlapping by EPS
   // datums do NOT include self connection
 
@@ -1641,17 +1664,17 @@ void FixSurfaceLocal::connectivity3d_local()
   memory->create(n2_counts,nlocal_connect,"surface/local:n2_counts");
   memory->create(n3_counts,nlocal_connect,"surface/local:n3_counts");
 
-  int ilocal,itri;
+  int ilocal,iconnect;
 
   for (i = 0; i < nlocal_connect; i++)
     n1_counts[i] = n2_counts[i] = n3_counts[i] = 0;
 
   for (i = 0; i < nreturn; i++) {
     ilocal = outbuf[i].ilocal;
-    itri = tri[ilocal];
-    if (outbuf[i].ipoint == 0) n1_counts[i]++;
-    else if (outbuf[i].ipoint == 1) n2_counts[i]++;
-    else n3_counts[i]++;
+    iconnect = atom2connect[ilocal];
+    if (outbuf[i].ipoint == 0) n1_counts[iconnect]++;
+    else if (outbuf[i].ipoint == 1) n2_counts[iconnect]++;
+    else n3_counts[iconnect]++;
   }
   
   // allocate ragged neigh_n123 vectors using n1/n2/n3_counts
@@ -1676,36 +1699,36 @@ void FixSurfaceLocal::connectivity3d_local()
   
   for (i = 0; i < nreturn; i++) {
     ilocal = outbuf[i].ilocal;
-    itri = tri[ilocal];
+    iconnect = atom2connect[ilocal];
     if (outbuf[i].ipoint == 0) {
       atomID = outbuf[i].atomID;
-      np = n1_counts[itri];
-      neigh = neigh_n1[itri];
+      np = n1_counts[iconnect];
+      neigh = neigh_n1[iconnect];
       for (j = 0; j < np; j++)
         if (neigh[j] == atomID) break;
       if (j == np) {
         neigh[np] = atomID;
-        n1_counts[itri]++;
+        n1_counts[iconnect]++;
       }
     } else if (outbuf[i].ipoint == 1) {
       atomID = outbuf[i].atomID;
-      np = n2_counts[itri];
-      neigh = neigh_n2[itri];
+      np = n2_counts[iconnect];
+      neigh = neigh_n2[iconnect];
       for (j = 0; j < np; j++)
         if (neigh[j] == atomID) break;
       if (j == np) {
         neigh[np] = atomID;
-        n2_counts[itri]++;
+        n2_counts[iconnect]++;
       }
     } else if (outbuf[i].ipoint == 2) {
       atomID = outbuf[i].atomID;
-      np = n3_counts[itri];
-      neigh = neigh_n3[itri];
+      np = n3_counts[iconnect];
+      neigh = neigh_n3[iconnect];
       for (j = 0; j < np; j++)
         if (neigh[j] == atomID) break;
       if (j == np) {
         neigh[np] = atomID;
-        n3_counts[itri]++;
+        n3_counts[iconnect]++;
       }
     }
   }
@@ -1966,7 +1989,7 @@ int FixSurfaceLocal::point_match(int n, char *inbuf,
                                  int &rflag, int *&proclist, char *&outbuf,
                                  void *ptr)
 {
-  // access class data for epsilon and bin count
+  // access class data for epssq and bin count
 
   auto fslptr = (FixSurfaceLocal *) ptr;
   Memory *memory = fslptr->memory;
@@ -2687,7 +2710,7 @@ void FixSurfaceLocal::connectivity3d_global()
     connect3dall[i].ne2 = e2_counts[i];
     if (connect3dall[i].ne2) connect3dall[i].neigh_e2 = neigh_e2[i];
     else connect3dall[i].neigh_e1 = nullptr;
-    connect3dall[i].ne1 = e1_counts[i];
+    connect3dall[i].ne3 = e3_counts[i];
     if (connect3dall[i].ne3) connect3dall[i].neigh_e3 = neigh_e3[i];
     else connect3dall[i].neigh_e3 = nullptr;
   }
@@ -3026,12 +3049,12 @@ void FixSurfaceLocal::assign2d()
       memcpy(&connect2d[nlocal_connect],&connect2dall[i],sizeof(Connect2d));
 
       num = connect2d[nlocal_connect].np1;
-      global = connect2dall[nlocal_connect].neigh_p1;
       if (num) {
         connect2d[nlocal_connect].neigh_p1 = tcp->get(num,pool2d[nlocal_connect].neigh_p1);
         connect2d[nlocal_connect].pwhich_p1 = tcp->get(num,pool2d[nlocal_connect].pwhich_p1);
         connect2d[nlocal_connect].nside_p1 = tcp->get(num,pool2d[nlocal_connect].nside_p1);
         connect2d[nlocal_connect].aflag_p1 = tcp->get(num,pool2d[nlocal_connect].aflag_p1);
+        global = connect2dall[nlocal_connect].neigh_p1;
         local = connect2d[nlocal_connect].neigh_p1;
         for (j = 0; j < num; j++)
           local[j] = global[j] + idmaxall + 1;
@@ -3043,12 +3066,12 @@ void FixSurfaceLocal::assign2d()
       }
       
       num = connect2d[nlocal_connect].np2;
-      global = connect2dall[nlocal_connect].neigh_p2;
       if (num) {
         connect2d[nlocal_connect].neigh_p2 = tcp->get(num,pool2d[nlocal_connect].neigh_p2);
         connect2d[nlocal_connect].pwhich_p2 = tcp->get(num,pool2d[nlocal_connect].pwhich_p2);
         connect2d[nlocal_connect].nside_p2 = tcp->get(num,pool2d[nlocal_connect].nside_p2);
         connect2d[nlocal_connect].aflag_p2 = tcp->get(num,pool2d[nlocal_connect].aflag_p2);
+        global = connect2dall[nlocal_connect].neigh_p2;
         local = connect2d[nlocal_connect].neigh_p2;
         for (j = 0; j < num; j++)
           local[j] = global[j] + idmaxall + 1;
@@ -3233,11 +3256,11 @@ void FixSurfaceLocal::assign3d()
       svalues[7] = (const char *) values[6];
       svalues[8] = (const char *) values[7];
       svalues[9] = (const char *) values[8];
-
+      
       avec_tri->data_atom_bonus(n,svalues);
 
       // allocate all vectors in Connect3d
-      // copy neigh_e123 from global connect3dall to local connect3d
+      // copy neigh_e123 and neigh_c123 from global connect3dall to local connect3d
       //   reset global tri indices to new tri IDs beyond idmaxall
       // other vectors will be set in connectivity3d_complete()
 
@@ -3245,58 +3268,94 @@ void FixSurfaceLocal::assign3d()
       memcpy(&connect3d[nlocal_connect],&connect3dall[i],sizeof(Connect3d));
 
       num = connect3d[nlocal_connect].ne1;
-      global = connect3dall[nlocal_connect].neigh_e1;
       if (num) {
-        local = connect3d[nlocal_connect].neigh_e1 =
-          tcp->get(num,pool3d[nlocal_connect].neigh_e1);
+        connect3d[nlocal_connect].neigh_e1 = tcp->get(num,pool3d[nlocal_connect].neigh_e1);
+        connect3d[nlocal_connect].ewhich_e1 = tcp->get(num,pool3d[nlocal_connect].ewhich_e1);
+        connect3d[nlocal_connect].nside_e1 = tcp->get(num,pool3d[nlocal_connect].nside_e1);
+        connect3d[nlocal_connect].aflag_e1 = tcp->get(num,pool3d[nlocal_connect].aflag_e1);
+        global = connect3dall[nlocal_connect].neigh_e1;
+        local = connect3d[nlocal_connect].neigh_e1;
         for (j = 0; j < num; j++)
           local[j] = global[j] + idmaxall + 1;
-      } else connect3d[nlocal_connect].neigh_e1 = nullptr;
+      } else {
+        connect3d[nlocal_connect].neigh_e1 = nullptr;
+        connect3d[nlocal_connect].ewhich_e1 = nullptr;
+        connect3d[nlocal_connect].nside_e1 = nullptr;
+        connect3d[nlocal_connect].aflag_e1 = nullptr;
+      }
 
       num = connect3d[nlocal_connect].ne2;
-      global = connect3dall[nlocal_connect].neigh_e2;
       if (num) {
-        local = connect3d[nlocal_connect].neigh_e2 =
-          tcp->get(num,pool3d[nlocal_connect].neigh_e2);
+        connect3d[nlocal_connect].neigh_e2 = tcp->get(num,pool3d[nlocal_connect].neigh_e2);
+        connect3d[nlocal_connect].ewhich_e2 = tcp->get(num,pool3d[nlocal_connect].ewhich_e2);
+        connect3d[nlocal_connect].nside_e2 = tcp->get(num,pool3d[nlocal_connect].nside_e2);
+        connect3d[nlocal_connect].aflag_e2 = tcp->get(num,pool3d[nlocal_connect].aflag_e2);
+        global = connect3dall[nlocal_connect].neigh_e2;
+        local = connect3d[nlocal_connect].neigh_e2;
         for (j = 0; j < num; j++)
           local[j] = global[j] + idmaxall + 1;
-      } else connect3d[nlocal_connect].neigh_e2 = nullptr;
+      } else {
+        connect3d[nlocal_connect].neigh_e2 = nullptr;
+        connect3d[nlocal_connect].ewhich_e2 = nullptr;
+        connect3d[nlocal_connect].nside_e2 = nullptr;
+        connect3d[nlocal_connect].aflag_e2 = nullptr;
+      }
 
       num = connect3d[nlocal_connect].ne3;
-      global = connect3d[nlocal_connect].neigh_e3;
       if (num) {
-        local = connect3d[nlocal_connect].neigh_e3 =
-          tcp->get(num,pool3d[nlocal_connect].neigh_e3);
+        connect3d[nlocal_connect].neigh_e3 = tcp->get(num,pool3d[nlocal_connect].neigh_e3);
+        connect3d[nlocal_connect].ewhich_e3 = tcp->get(num,pool3d[nlocal_connect].ewhich_e3);
+        connect3d[nlocal_connect].nside_e3 = tcp->get(num,pool3d[nlocal_connect].nside_e3);
+        connect3d[nlocal_connect].aflag_e3 = tcp->get(num,pool3d[nlocal_connect].aflag_e3);
+        global = connect3dall[nlocal_connect].neigh_e3;
+        local = connect3d[nlocal_connect].neigh_e3;
         for (j = 0; j < num; j++)
           local[j] = global[j] + idmaxall + 1;
-      } else connect3d[nlocal_connect].neigh_e3 = nullptr;
+      } else {
+        connect3d[nlocal_connect].neigh_e3 = nullptr;
+        connect3d[nlocal_connect].ewhich_e3 = nullptr;
+        connect3d[nlocal_connect].nside_e3 = nullptr;
+        connect3d[nlocal_connect].aflag_e3 = nullptr;
+      }
 
       num = connect3d[nlocal_connect].nc1;
-      global = connect3d[nlocal_connect].neigh_c1;
       if (num) {
-        local = connect3d[nlocal_connect].neigh_c1 =
-          tcp->get(num,pool3d[nlocal_connect].neigh_c1);
+        connect3d[nlocal_connect].neigh_c1 = tcp->get(num,pool3d[nlocal_connect].neigh_c1);
+        connect3d[nlocal_connect].cwhich_c1 = tcp->get(num,pool3d[nlocal_connect].cwhich_c1);
+        global = connect3dall[nlocal_connect].neigh_c1;
+        local = connect3d[nlocal_connect].neigh_c1;
         for (j = 0; j < num; j++)
           local[j] = global[j] + idmaxall + 1;
-      } else connect3d[nlocal_connect].neigh_c1 = nullptr;
+      } else {
+        connect3d[nlocal_connect].neigh_c1 = nullptr;
+        connect3d[nlocal_connect].cwhich_c1 = nullptr;
+      }
 
       num = connect3d[nlocal_connect].nc2;
-      global = connect3d[nlocal_connect].neigh_c2;
       if (num) {
-        local = connect3d[nlocal_connect].neigh_c2 =
-          tcp->get(num,pool3d[nlocal_connect].neigh_c2);
+        connect3d[nlocal_connect].neigh_c2 = tcp->get(num,pool3d[nlocal_connect].neigh_c2);
+        connect3d[nlocal_connect].cwhich_c2 = tcp->get(num,pool3d[nlocal_connect].cwhich_c2);
+        global = connect3dall[nlocal_connect].neigh_c2;
+        local = connect3d[nlocal_connect].neigh_c2;
         for (j = 0; j < num; j++)
           local[j] = global[j] + idmaxall + 1;
-      } else connect3d[nlocal_connect].neigh_c2 = nullptr;
+      } else {
+        connect3d[nlocal_connect].neigh_c2 = nullptr;
+        connect3d[nlocal_connect].cwhich_c2 = nullptr;
+      }
 
       num = connect3d[nlocal_connect].nc3;
-      global = connect3d[nlocal_connect].neigh_c3;
       if (num) {
-        local = connect3d[nlocal_connect].neigh_c3 =
-          tcp->get(num,pool3d[nlocal_connect].neigh_c3);
+        connect3d[nlocal_connect].neigh_c3 = tcp->get(num,pool3d[nlocal_connect].neigh_c3);
+        connect3d[nlocal_connect].cwhich_c3 = tcp->get(num,pool3d[nlocal_connect].cwhich_c3);
+        global = connect3dall[nlocal_connect].neigh_c3;
+        local = connect3d[nlocal_connect].neigh_c3;
         for (j = 0; j < num; j++)
           local[j] = global[j] + idmaxall + 1;
-      } else connect3d[nlocal_connect].neigh_c3 = nullptr;
+      } else {
+        connect3d[nlocal_connect].neigh_c3 = nullptr;
+        connect3d[nlocal_connect].cwhich_c3 = nullptr;
+      }
 
       connect2atom[nlocal_connect] = n;
       atom2connect[n] = nlocal_connect;
@@ -3333,6 +3392,11 @@ void FixSurfaceLocal::assign3d()
 
 void FixSurfaceLocal::connectivity2d_complete()
 {
+  // epssq = square of EPSILON fraction of minimum line length
+  // for use in same_point()
+  
+  if (epssq < 0.0) epsilon_calculate();
+
   // calculate endpts and normals for all owned+ghost line particles
 
   double ***endpts,**normals;
@@ -3398,7 +3462,7 @@ void FixSurfaceLocal::connectivity2d_complete()
       jnorm = normals[jconnect];
       dotnorm = MathExtra::dot3(inorm,jnorm);
 
-      if (samepoint(endpts[iconnect][0],endpts[jconnect][0])) {
+      if (same_point(endpts[iconnect][0],endpts[jconnect][0])) {
         connect2d[iconnect].pwhich_p1[m] = 0;
         connect2d[iconnect].nside_p1[m] = OPPOSITE_SIDE;
         if (dotnorm < -1.0+flatthresh) {
@@ -3408,7 +3472,7 @@ void FixSurfaceLocal::connectivity2d_complete()
           if (icrossj[2] > 0.0) connect2d[iconnect].aflag_p1[m] = CONCAVE;
           else connect2d[iconnect].aflag_p1[m] = CONVEX;
         }
-      } else if (samepoint(endpts[iconnect][0],endpts[jconnect][1])) {
+      } else if (same_point(endpts[iconnect][0],endpts[jconnect][1])) {
         connect2d[iconnect].pwhich_p1[m] = 1;
         connect2d[iconnect].nside_p1[m] = SAME_SIDE;
         if (dotnorm > 1.0-flatthresh) {
@@ -3434,7 +3498,7 @@ void FixSurfaceLocal::connectivity2d_complete()
       dy = endpts[iconnect][1][1] - endpts[jconnect][0][1];
       rsq = dx*dx + dy*dy;
 
-      if (samepoint(endpts[iconnect][1],endpts[jconnect][0])) {
+      if (same_point(endpts[iconnect][1],endpts[jconnect][0])) {
         connect2d[iconnect].pwhich_p2[m] = 0;
         connect2d[iconnect].nside_p2[m] = SAME_SIDE;
         if (dotnorm > 1.0-flatthresh) {
@@ -3444,7 +3508,7 @@ void FixSurfaceLocal::connectivity2d_complete()
           if (icrossj[2] > 0.0) connect2d[iconnect].aflag_p2[m] = CONCAVE;
           else connect2d[iconnect].aflag_p2[m] = CONVEX;
         }
-      } else if (samepoint(endpts[iconnect][1],endpts[jconnect][1])) {
+      } else if (same_point(endpts[iconnect][1],endpts[jconnect][1])) {
         connect2d[iconnect].pwhich_p2[m] = 1;
         connect2d[iconnect].nside_p2[m] = OPPOSITE_SIDE;
         if (dotnorm < -1.0+flatthresh) {
@@ -3470,7 +3534,12 @@ void FixSurfaceLocal::connectivity2d_complete()
 
 void FixSurfaceLocal::connectivity3d_complete()
 {
- // calculate corner pts and normals for all owned+ghost tri particles
+  // epssq = square of EPSILON fraction of minimum tri diameter
+  // for use in same_point()
+
+  if (epssq < 0.0) epsilon_calculate();
+  
+  // calculate corner pts and normals for all owned+ghost tri particles
 
   double ***cpts,**normals;
   memory->create(cpts,nlocal_connect+nghost_connect,3,3,"surface/local:cpts");
@@ -3528,13 +3597,13 @@ void FixSurfaceLocal::connectivity3d_complete()
       j = atom->map(jtag);
       jconnect = atom2connect[j];
 
-      if (samepoint(cpts[iconnect][0],cpts[jconnect][0])) jpfirst = 1;
-      else if (samepoint(cpts[iconnect][0],cpts[jconnect][1])) jpfirst = 2;
-      else if (samepoint(cpts[iconnect][0],cpts[jconnect][2])) jpfirst = 3;
+      if (same_point(cpts[iconnect][0],cpts[jconnect][0])) jpfirst = 1;
+      else if (same_point(cpts[iconnect][0],cpts[jconnect][1])) jpfirst = 2;
+      else if (same_point(cpts[iconnect][0],cpts[jconnect][2])) jpfirst = 3;
 
-      if (samepoint(cpts[iconnect][1],cpts[jconnect][0])) jpsecond = 1;
-      else if (samepoint(cpts[iconnect][1],cpts[jconnect][1])) jpsecond = 2;
-      else if (samepoint(cpts[iconnect][1],cpts[jconnect][2])) jpsecond = 3;
+      if (same_point(cpts[iconnect][1],cpts[jconnect][0])) jpsecond = 1;
+      else if (same_point(cpts[iconnect][1],cpts[jconnect][1])) jpsecond = 2;
+      else if (same_point(cpts[iconnect][1],cpts[jconnect][2])) jpsecond = 3;
 
       inorm = normals[iconnect];
       jnorm = normals[jconnect];
@@ -3575,13 +3644,13 @@ void FixSurfaceLocal::connectivity3d_complete()
       j = atom->map(jtag);
       jconnect = atom2connect[j];
 
-      if (samepoint(cpts[iconnect][1],cpts[jconnect][0])) jpfirst = 1;
-      else if (samepoint(cpts[iconnect][1],cpts[jconnect][1])) jpfirst = 2;
-      else if (samepoint(cpts[iconnect][1],cpts[jconnect][2])) jpfirst = 3;
+      if (same_point(cpts[iconnect][1],cpts[jconnect][0])) jpfirst = 1;
+      else if (same_point(cpts[iconnect][1],cpts[jconnect][1])) jpfirst = 2;
+      else if (same_point(cpts[iconnect][1],cpts[jconnect][2])) jpfirst = 3;
 
-      if (samepoint(cpts[iconnect][2],cpts[jconnect][0])) jpsecond = 1;
-      else if (samepoint(cpts[iconnect][2],cpts[jconnect][1])) jpsecond = 2;
-      else if (samepoint(cpts[iconnect][2],cpts[jconnect][2])) jpsecond = 3;
+      if (same_point(cpts[iconnect][2],cpts[jconnect][0])) jpsecond = 1;
+      else if (same_point(cpts[iconnect][2],cpts[jconnect][1])) jpsecond = 2;
+      else if (same_point(cpts[iconnect][2],cpts[jconnect][2])) jpsecond = 3;
 
       inorm = normals[iconnect];
       jnorm = normals[jconnect];
@@ -3622,13 +3691,13 @@ void FixSurfaceLocal::connectivity3d_complete()
       j = atom->map(jtag);
       jconnect = atom2connect[j];
 
-      if (samepoint(cpts[iconnect][2],cpts[jconnect][0])) jpfirst = 1;
-      else if (samepoint(cpts[iconnect][2],cpts[jconnect][1])) jpfirst = 2;
-      else if (samepoint(cpts[iconnect][2],cpts[jconnect][2])) jpfirst = 3;
+      if (same_point(cpts[iconnect][2],cpts[jconnect][0])) jpfirst = 1;
+      else if (same_point(cpts[iconnect][2],cpts[jconnect][1])) jpfirst = 2;
+      else if (same_point(cpts[iconnect][2],cpts[jconnect][2])) jpfirst = 3;
 
-      if (samepoint(cpts[iconnect][0],cpts[jconnect][0])) jpsecond = 1;
-      else if (samepoint(cpts[iconnect][0],cpts[jconnect][1])) jpsecond = 2;
-      else if (samepoint(cpts[iconnect][0],cpts[jconnect][2])) jpsecond = 3;
+      if (same_point(cpts[iconnect][0],cpts[jconnect][0])) jpsecond = 1;
+      else if (same_point(cpts[iconnect][0],cpts[jconnect][1])) jpsecond = 2;
+      else if (same_point(cpts[iconnect][0],cpts[jconnect][2])) jpsecond = 3;
 
       inorm = normals[iconnect];
       jnorm = normals[jconnect];
@@ -3665,11 +3734,10 @@ void FixSurfaceLocal::connectivity3d_complete()
     }
   }
 
-  // set connect3d cwhich for each end point of each line
+  // set connect3d cwhich for each corner point of each tri
   // see fsl.h file for an explanation of each corner vector in Connect3d
-  // aflag is based on dot and cross product of 2 connected tri normals
 
-  for (int i = 0; i < ntris; i++) {
+  for (int i = 0; i < nlocal; i++) {
     if (tri[i] < 0) continue;
     iconnect = atom2connect[i];
 
@@ -3677,11 +3745,11 @@ void FixSurfaceLocal::connectivity3d_complete()
       jtag = connect3d[iconnect].neigh_c1[m];
       j = atom->map(jtag);
       jconnect = atom2connect[j];
-      if (samepoint(cpts[iconnect][0],cpts[jconnect][0])) 
+      if (same_point(cpts[iconnect][0],cpts[jconnect][0])) 
         connect3d[iconnect].cwhich_c1[m] = 0;
-      else if (samepoint(cpts[iconnect][0],cpts[jconnect][1])) 
+      else if (same_point(cpts[iconnect][0],cpts[jconnect][1])) 
         connect3d[iconnect].cwhich_c1[m] = 1;
-      else if (samepoint(cpts[iconnect][0],cpts[jconnect][2])) 
+      else if (same_point(cpts[iconnect][0],cpts[jconnect][2])) 
         connect3d[iconnect].cwhich_c1[m] = 2;
     }
     
@@ -3689,11 +3757,11 @@ void FixSurfaceLocal::connectivity3d_complete()
       jtag = connect3d[iconnect].neigh_c2[m];
       j = atom->map(jtag);
       jconnect = atom2connect[j];
-      if (samepoint(cpts[iconnect][1],cpts[jconnect][0])) 
+      if (same_point(cpts[iconnect][1],cpts[jconnect][0])) 
         connect3d[iconnect].cwhich_c2[m] = 0;
-      else if (samepoint(cpts[iconnect][1],cpts[jconnect][1])) 
+      else if (same_point(cpts[iconnect][1],cpts[jconnect][1])) 
         connect3d[iconnect].cwhich_c2[m] = 1;
-      else if (samepoint(cpts[iconnect][1],cpts[jconnect][2])) 
+      else if (same_point(cpts[iconnect][1],cpts[jconnect][2])) 
         connect3d[iconnect].cwhich_c2[m] = 2;
     }
     
@@ -3701,11 +3769,11 @@ void FixSurfaceLocal::connectivity3d_complete()
       jtag = connect3d[iconnect].neigh_c3[m];
       j = atom->map(jtag);
       jconnect = atom2connect[j];
-      if (samepoint(cpts[iconnect][2],cpts[jconnect][0])) 
+      if (same_point(cpts[iconnect][2],cpts[jconnect][0])) 
         connect3d[iconnect].cwhich_c3[m] = 0;
-      else if (samepoint(cpts[iconnect][2],cpts[jconnect][1])) 
+      else if (same_point(cpts[iconnect][2],cpts[jconnect][1])) 
         connect3d[iconnect].cwhich_c3[m] = 1;
-      else if (samepoint(cpts[iconnect][2],cpts[jconnect][2])) 
+      else if (same_point(cpts[iconnect][2],cpts[jconnect][2])) 
         connect3d[iconnect].cwhich_c3[m] = 2;
     }
   }
@@ -3721,7 +3789,7 @@ void FixSurfaceLocal::connectivity3d_complete()
    else return 0
 ------------------------------------------------------------------------- */
 
-int FixSurfaceLocal::samepoint(double *pt1, double *pt2)
+int FixSurfaceLocal::same_point(double *pt1, double *pt2)
 {
   double dx = pt1[0] - pt2[0];
   double dy = pt1[1] - pt2[1];
@@ -3729,4 +3797,44 @@ int FixSurfaceLocal::samepoint(double *pt1, double *pt2)
   double rsq = dx*dx + dy*dy + dz*dz;
   if (rsq < epssq) return 1;
   return 0;
+}
+
+/* ----------------------------------------------------------------------
+   calculate eps = threshold for matching 2 points from different lines/tris
+   stored as eps and epssq
+------------------------------------------------------------------------- */
+
+void FixSurfaceLocal::epsilon_calculate()
+{
+  if (dimension == 2) {
+    AtomVecLine::Bonus *bonus = avec_line->bonus;
+    int *line = atom->line;
+    int nlocal = atom->nlocal;
+
+    double minlen = BIG;
+    for (int i = 0; i < nlocal; i++)
+      if (line[i] >= 0) minlen = MIN(minlen,bonus[line[i]].length);
+
+    // eps = EPSILON fraction of minimum line length
+    
+    MPI_Allreduce(&minlen,&eps,1,MPI_DOUBLE,MPI_MIN,world);
+    eps *= EPSILON;
+    epssq = eps*eps;
+    
+  } else if (dimension == 3) {
+    double *radius = atom->radius;
+    int *tri = atom->tri;
+    int nlocal = atom->nlocal;
+    
+    double minlen = BIG;
+    for (int i = 0; i < nlocal; i++)
+      if (tri[i] >= 0) minlen = MIN(minlen,radius[i]);
+    minlen *= 2.0;
+
+    // eps = EPSILON fraction of minimum tri diameter
+
+    MPI_Allreduce(&minlen,&eps,1,MPI_DOUBLE,MPI_MIN,world);
+    eps *= EPSILON;
+    epssq = eps*eps;
+  }
 }

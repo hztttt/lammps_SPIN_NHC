@@ -32,8 +32,8 @@ fix		3 sphere gravity 1.0 vector 0 0 -1
 #fix             4 sphere viscous 0.2
 
 region          slab block -2 2 -2 2 -2 2 units box
-fix             ins sphere pour 100 1 4767548 vol 0.4 10 &
-	        diam one 1.0 region slab ignore
+#fix             ins sphere pour 100 1 4767548 vol 0.4 10 &
+#	        diam one 1.0 region slab ignore
 
 timestep	0.005
 
