@@ -32,7 +32,7 @@ class FixSurfaceLocal : public Fix {
   // 2d/3d connectivity
 
   struct Connect2d {      // line connectivity
-    
+
                           // counts, not including self
     int np1,np2;          // # of lines connected to endpts 1/2
 
@@ -84,7 +84,7 @@ class FixSurfaceLocal : public Fix {
     int *cwhich_c2;       // ditto for corner pt 2
     int *cwhich_c3;       // ditto for corner pt 3
   };
-  
+
   Connect2d *connect2d;         // 2d connection info
   Connect3d *connect3d;         // 3d connection info
   int nmax_connect;             // allocated size of connect2d/3d
@@ -158,7 +158,7 @@ class FixSurfaceLocal : public Fix {
   // size of local/ghost connection info vectors
 
   int nlocal_connect,nghost_connect;
-  
+
   // data structs for calculating global connectivity of line/tri particles
   // only used by Rvous comm during setup
 
@@ -254,7 +254,7 @@ class FixSurfaceLocal : public Fix {
   int overlap_bins_2d(double *, double, int *);
   void calculate_corners(double **);
   int overlap_bins_3d(double *, double, int *);
-  
+
   // global connectivity build from molecule or STL files
 
   int check_exist();
