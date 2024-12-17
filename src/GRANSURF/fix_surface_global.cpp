@@ -1197,15 +1197,6 @@ void FixSurfaceGlobal::post_force(int vflag)
 
       MathExtra::zero3(vc);
       MathExtra::zero3(omegac);
-      // TODO correct velocity at contact point, from before:
-      //j = contact_surfs[m].index
-      //ds[0] = contact[0] - xsurf[j][0];
-      //ds[1] = contact[1] - xsurf[j][1];
-      //ds[2] = contact[2] - xsurf[j][2];
-      //v_contact[0] = vsurf[j][0] + (omegasurf[j][1] * ds[2] - omegasurf[j][2] * ds[1]);
-      //v_contact[1] = vsurf[j][1] + (omegasurf[j][2] * ds[0] - omegasurf[j][0] * ds[2]);
-      //v_contact[2] = vsurf[j][2] + (omegasurf[j][0] * ds[1] - omegasurf[j][1] * ds[0]);
-
 
       jtype = contact_surfs[n].type;
       model = types2model[itype][jtype];
@@ -1215,6 +1206,14 @@ void FixSurfaceGlobal::post_force(int vflag)
       model->omegai = omega[i];
       if (heat_flag) model->Ti = temperature[i];
       model->meff = meff;
+
+      // Correct velocity at contact point, extending from closest surf j
+      ds[0] = xc[0] - xsurf[j][0];
+      ds[1] = xc[1] - xsurf[j][1];
+      ds[2] = xc[2] - xsurf[j][2];
+      vc[0] = vsurf[j][0] + (omegasurf[j][1] * ds[2] - omegasurf[j][2] * ds[1]);
+      vc[1] = vsurf[j][1] + (omegasurf[j][2] * ds[0] - omegasurf[j][0] * ds[2]);
+      vc[2] = vsurf[j][2] + (omegasurf[j][0] * ds[1] - omegasurf[j][1] * ds[0]);
 
       model->xj = xc;
       model->vj = vc;
