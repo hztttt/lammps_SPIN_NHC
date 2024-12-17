@@ -141,21 +141,24 @@ FixSurfaceGlobal::FixSurfaceGlobal(LAMMPS *lmp, int narg, char **arg) :
   // process one or more granular models
   // disable bonded/history option for now
 
+  class GranularModel* model;
   models = nullptr;
   nmodel = maxmodel = 0;
   heat_flag = 0;
+  use_history = 0;
+  size_history = -1;
 
   while (iarg < narg) {
     if (strcmp(arg[iarg],"model") == 0) {
-      if (iarg+4 > narg) error->all(FLERR,"Illegal fix surface/global command");
+      if (iarg+4 > narg) error->all(FLERR,"Illegal fix surface/global command {}", arg[iarg]);
 
       if (nmodel == maxmodel) {
         maxmodel += DELTAMODEL;
         modeltypes = (ModelTypes *)
-          memory->srealloc(models,maxmodel*sizeof(ModelTypes),"surf/gloabl:modeltypes");
+          memory->srealloc(models,maxmodel*sizeof(ModelTypes),"surf/global:modeltypes");
         models = (Granular_NS::GranularModel **)
           memory->srealloc(models,maxmodel*sizeof(Granular_NS::GranularModel *),
-                           "surf/gloabl:models");
+                           "surf/global:models");
       }
 
       models[nmodel] = model = new GranularModel(lmp);
@@ -198,7 +201,7 @@ FixSurfaceGlobal::FixSurfaceGlobal(LAMMPS *lmp, int narg, char **arg) :
           } else if (strcmp(arg[iarg], "heat") == 0) {
             iarg = model->add_sub_model(arg, iarg + 1, narg, HEAT);
             heat_flag = 1;
-          } else if (strcmp(arg[iarg],"limit_damping") == 0) {
+          } else if (strcmp(arg[iarg], "limit_damping") == 0) {
             model->limit_damping = 1;
             iarg++;
           } else break;
@@ -208,17 +211,20 @@ FixSurfaceGlobal::FixSurfaceGlobal(LAMMPS *lmp, int narg, char **arg) :
       // define default damping sub model
       // if unspecified, takes no args
       // JOEL NOTE: is damping_model check only for granular or also classic ?
+      //    ANSWER: it's performed for both, but the classic model always has damping
 
       if (!model->damping_model) model->construct_sub_model("viscoelastic", DAMPING);
 
       model->init();
 
-      // JOEL NOTE: do size_history and use_history apply to each model or all models ?
+      // JOEL NOTE: do size_history and use_history apply to each model or all models?
+      //    ANSWER: all models, logic updated below
 
-      size_history = model->size_history;
-      if (model->beyond_contact) size_history += 1;   // track if particle is touching
-      if (size_history == 0) use_history = 0;
-      else use_history = 1;
+      if (model->beyond_contact) size_history = MAX(size_history + 1, model->size_history);
+      else size_history = MAX(size_history, model->size_history);
+      if (model->size_history != 0) use_history = 1;
+      if (model->beyond_contact) //next_index = 1;
+      error->all(FLERR, "Granular models that extend beyond contact (e.g. JKR) not currenty supported");
 
     } else break;
   }
@@ -516,14 +522,17 @@ void FixSurfaceGlobal::init()
   // define history indices
   // JOEL NOTE: WHat are "beyond" contact models ?
   //            Why is this check not made in constructor ?
-
+  //    ANSWER: "beyond" is for contact models that have an attractive component
+  //            that extends beyond the contact distance
+  //            It doesn't have to be performed here, moved to constructor
+  class GranularModel* model;
   int next_index = 0;
-  if (model->beyond_contact) //next_index = 1;
-    error->all(FLERR, "Beyond contact models not currenty supported");
-
-  for (int i = 0; i < NSUBMODELS; i++) {
-    model->sub_models[i]->history_index = next_index;
-    next_index += model->sub_models[i]->size_history;
+  for (int n = 0; n < nmodel; n++) {
+    model = models[n];
+    for (int i = 0; i < NSUBMODELS; i++) {
+      model->sub_models[i]->history_index = next_index;
+      next_index += model->sub_models[i]->size_history;
+    }
   }
 
   // one-time setup and allocation of neighbor list
@@ -840,7 +849,7 @@ void FixSurfaceGlobal::pre_neighbor()
 void FixSurfaceGlobal::post_force(int vflag)
 {
   int i,j,k,a,n,m,nconnect,ii,jj,inum,jnum,jflag,otherflag;
-  int n_contact_surfs;
+  int itype,jtype,n_contact_surfs;
   double xtmp,ytmp,ztmp,radi,delx,dely,delz;
   double meff;
   int *ilist,*jlist,*numneigh,**firstneigh;
@@ -855,10 +864,6 @@ void FixSurfaceGlobal::post_force(int vflag)
   std::unordered_set<int> *processed_contacts = new std::unordered_set<int>();
   std::unordered_set<int> *hidden_contacts = new std::unordered_set<int>();
   std::map<int, int> *contacts_map = new std::map<int, int>();
-
-  model->history_update = 1;
-  model->radj = 0.0;
-  if (update->setupflag) model->history_update = 0;
 
   // if just reneighbored:
   // update rigid body masses for owned atoms if using FixRigid
@@ -893,13 +898,21 @@ void FixSurfaceGlobal::post_force(int vflag)
   double *temperature = atom->temperature;
   double *heatflow = atom->heatflow;
   double *rmass = atom->rmass;
+  int *type = atom->type;
   int *mask = atom->mask;
   int nlocal = atom->nlocal;
 
-  if (heat_flag) {
-    if (tstr)
-      Twall = input->variable->compute_equal(tvar);
-    model->Tj = Twall;
+  class GranularModel* model;
+  for (n = 0; n < nmodel; n++) {
+    model = models[n];
+    model->history_update = 1;
+    model->radj = 0.0;
+    if (update->setupflag) model->history_update = 0;
+    if (heat_flag) {
+      if (tstr)
+        Twall = input->variable->compute_equal(tvar);
+      model->Tj = Twall;
+    }
   }
 
   inum = list->inum;
@@ -918,16 +931,11 @@ void FixSurfaceGlobal::post_force(int vflag)
     ytmp = x[i][1];
     ztmp = x[i][2];
     radi = radius[i];
-    model->xi = x[i];
-    model->radi = radi;
-    model->vi = v[i];
-    model->omegai = omega[i];
-    if (heat_flag) model->Ti = temperature[i];
+    itype = type[i];
 
     // if I is part of rigid body, use body mass
     meff = rmass[i];
     if (fix_rigid && mass_rigid[i] > 0.0) meff = mass_rigid[i];
-    model->meff = meff;
 
     jlist = firstneigh[i];
     jnum = numneigh[i];
@@ -1189,14 +1197,23 @@ void FixSurfaceGlobal::post_force(int vflag)
 
       MathExtra::zero3(vc);
       MathExtra::zero3(omegac);
-      // TODO correct velocity at contact point, from before:
-      //j = contact_surfs[m].index
-      //ds[0] = contact[0] - xsurf[j][0];
-      //ds[1] = contact[1] - xsurf[j][1];
-      //ds[2] = contact[2] - xsurf[j][2];
-      //v_contact[0] = vsurf[j][0] + (omegasurf[j][1] * ds[2] - omegasurf[j][2] * ds[1]);
-      //v_contact[1] = vsurf[j][1] + (omegasurf[j][2] * ds[0] - omegasurf[j][0] * ds[2]);
-      //v_contact[2] = vsurf[j][2] + (omegasurf[j][0] * ds[1] - omegasurf[j][1] * ds[0]);
+
+      jtype = contact_surfs[n].type;
+      model = types2model[itype][jtype];
+      model->xi = x[i];
+      model->radi = radi;
+      model->vi = v[i];
+      model->omegai = omega[i];
+      if (heat_flag) model->Ti = temperature[i];
+      model->meff = meff;
+
+      // Correct velocity at contact point, extending from closest surf j
+      ds[0] = xc[0] - xsurf[j][0];
+      ds[1] = xc[1] - xsurf[j][1];
+      ds[2] = xc[2] - xsurf[j][2];
+      vc[0] = vsurf[j][0] + (omegasurf[j][1] * ds[2] - omegasurf[j][2] * ds[1]);
+      vc[1] = vsurf[j][1] + (omegasurf[j][2] * ds[0] - omegasurf[j][0] * ds[2]);
+      vc[2] = vsurf[j][2] + (omegasurf[j][0] * ds[1] - omegasurf[j][1] * ds[0]);
 
       model->xj = xc;
       model->vj = vc;
