@@ -4,6 +4,7 @@
 # sitting on an atom of type 1 or 2:
 # val1 = 1.0/(0.1355*sqrt(2.0*pi))**3 = 25.5219
 # val2 = 1.0/(0.2   *sqrt(2.0*pi))**3 = 7.93670
+# These values are extracted to the log file
 # 
 
 variable 	nrep index 1
@@ -36,7 +37,6 @@ mass 		* 180.88
 
 # define atom compute and grid compute
 
-group 		snapgroup type 1
 variable 	rcutfac equal 4.67637
 variable 	radelem1 equal 0.5
 variable 	radelem2 equal 0.5
@@ -57,10 +57,12 @@ compute 	mygridlocal all gaussian/grid/local grid ${ngrid} ${ngrid} ${ngrid} &
 
 # define output
 
-dump 1 all local 1000 dump.glocal c_mygridlocal[*]
-dump 2 all custom 1000 dump.gatom id x y z
+dump		1 all local 1000 dump.glocal c_mygridlocal[*]
+dump 		2 all custom 1000 dump.gatom id x y z
+compute		val1 all reduce max c_mygridlocal[7] inputs local
+compute		val2 all reduce max c_mygridlocal[8] inputs local
+thermo_style	custom step c_val1 c_val2
 
 # run
 
 run		0
-
