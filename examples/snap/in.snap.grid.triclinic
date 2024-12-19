@@ -47,7 +47,6 @@ lattice		custom $a &
 		basis 0.0 0.0 0.5 &
 		spacing 1 1 1
 
-box 		tilt large
 region		box prism 0 ${nx} 0 ${ny} 0 ${nz} ${ny} ${nz} ${nz}
 create_box	1 box
 create_atoms	1 box
