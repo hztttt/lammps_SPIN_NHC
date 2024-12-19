@@ -3360,6 +3360,7 @@ Schilfgarde
 Schimansky
 Schiotz
 Schlitter
+Schmerler
 Schmid
 Schnieders
 Schoen
@@ -4021,6 +4022,7 @@ VMDARCH
 VMDHOME
 vn
 Voigt
+Vogel
 volfactor
 Volkov
 Volpe
