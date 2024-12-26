@@ -13,6 +13,7 @@
 
 #include "logwindow.h"
 
+#include "flagwarnings.h"
 #include "lammpsgui.h"
 
 #include <QAction>
@@ -33,10 +34,12 @@ const QString LogWindow::yaml_regex =
     QStringLiteral("^(keywords:.*$|data:$|---$|\\.\\.\\.$|  - \\[.*\\]$)");
 
 LogWindow::LogWindow(const QString &_filename, QWidget *parent) :
-    QPlainTextEdit(parent), filename(_filename)
+    QPlainTextEdit(parent), filename(_filename), warnings(nullptr)
 {
     QSettings settings;
     resize(settings.value("logx", 500).toInt(), settings.value("logy", 320).toInt());
+
+    warnings = new FlagWarnings(document());
 
     auto *action = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_S), this);
     connect(action, &QShortcut::activated, this, &LogWindow::save_as);
@@ -48,6 +51,11 @@ LogWindow::LogWindow(const QString &_filename, QWidget *parent) :
     connect(action, &QShortcut::activated, this, &LogWindow::stop_run);
 
     installEventFilter(this);
+}
+
+LogWindow::~LogWindow()
+{
+    delete warnings;
 }
 
 void LogWindow::closeEvent(QCloseEvent *event)

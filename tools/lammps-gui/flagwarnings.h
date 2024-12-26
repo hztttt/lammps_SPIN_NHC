@@ -11,38 +11,26 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
-#ifndef LOGWINDOW_H
-#define LOGWINDOW_H
+#ifndef FLAGWARNINGS_H
+#define FLAGWARNINGS_H
 
-#include <QPlainTextEdit>
+#include <QRegularExpression>
+#include <QSyntaxHighlighter>
+#include <QTextCharFormat>
 
-class FlagWarnings;
-
-class LogWindow : public QPlainTextEdit {
+class FlagWarnings : public QSyntaxHighlighter {
     Q_OBJECT
 
 public:
-    LogWindow(const QString &filename, QWidget *parent = nullptr);
-    ~LogWindow() override;
-
-private slots:
-    void extract_yaml();
-    void quit();
-    void save_as();
-    void stop_run();
+    FlagWarnings(QTextDocument *parent = 0);
 
 protected:
-    void closeEvent(QCloseEvent *event) override;
-    void contextMenuEvent(QContextMenuEvent *event) override;
-    bool eventFilter(QObject *watched, QEvent *event) override;
-    bool check_yaml();
+    void highlightBlock(const QString &text) override;
 
 private:
-    QString filename;
-    static const QString yaml_regex;
-    FlagWarnings *warnings;
+    QRegularExpression isWarning;
+    QTextCharFormat formatWarning;
 };
-
 #endif
 // Local Variables:
 // c-basic-offset: 4

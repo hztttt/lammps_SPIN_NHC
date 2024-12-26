@@ -130,6 +130,8 @@ set(PROJECT_SOURCES
   codeeditor.h
   findandreplace.cpp
   findandreplace.h
+  flagwarnings.cpp
+  flagwarnings.h
   helpers.cpp
   highlighter.cpp
   highlighter.h
