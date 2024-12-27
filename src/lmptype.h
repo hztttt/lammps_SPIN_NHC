@@ -66,9 +66,9 @@ namespace LAMMPS_NS {
 
 // mask to curb data sizes when calling memcpy() to avoid bogus compiler warnings
 #if UINTPTR_MAX > (1UL<<63)
-static constexpr uint64_t memcpymask = (static_cast<uint64_t>(1) << 63) - 1U;
+static constexpr uint64_t MEMCPYMASK = (static_cast<uint64_t>(1) << 63) - 1U;
 #else
-static constexpr uint32_t memcpymask = (static_cast<uint32_t>(1) << 31) - 1U;
+static constexpr uint32_t MEMCPYMASK = (static_cast<uint32_t>(1) << 31) - 1U;
 #endif
 
 // default to 32-bit smallint and other ints, 64-bit bigint

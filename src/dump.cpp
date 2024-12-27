@@ -408,9 +408,9 @@ void Dump::write()
     int nlocal = atom->nlocal;
     if (nlocal > maxpbc) pbc_allocate();
     if (nlocal) {
-      memcpy(&xpbc[0][0],&atom->x[0][0],(3*nlocal*sizeof(double))&memcpymask);
-      memcpy(&vpbc[0][0],&atom->v[0][0],(3*nlocal*sizeof(double))&memcpymask);
-      memcpy(imagepbc,atom->image,(nlocal*sizeof(imageint))&memcpymask);
+      memcpy(&xpbc[0][0],&atom->x[0][0],(3*nlocal*sizeof(double))&MEMCPYMASK);
+      memcpy(&vpbc[0][0],&atom->v[0][0],(3*nlocal*sizeof(double))&MEMCPYMASK);
+      memcpy(imagepbc,atom->image,(nlocal*sizeof(imageint))&MEMCPYMASK);
     }
     xhold = atom->x;
     vhold = atom->v;

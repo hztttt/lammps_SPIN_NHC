@@ -4718,7 +4718,7 @@ int Variable::special_function(const std::string &word, char *contents, Tree **t
 
       double *result;
       memory->create(result,atom->nlocal,"variable:result");
-      memcpy(result,reader[ivar]->fixstore->vstore,(atom->nlocal*sizeof(double))&memcpymask);
+      memcpy(result,reader[ivar]->fixstore->vstore,(atom->nlocal*sizeof(double))&MEMCPYMASK);
 
       int done = reader[ivar]->read_peratom();
       if (done) remove(ivar);
