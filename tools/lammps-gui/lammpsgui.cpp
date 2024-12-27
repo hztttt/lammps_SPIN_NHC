@@ -217,6 +217,12 @@ LammpsGui::LammpsGui(QWidget *parent, const QString &filename) :
     connect(ui->actionLAMMPS_Tutorial, &QAction::triggered, this, &LammpsGui::tutorial_web);
     connect(ui->actionTutorial1, &QAction::triggered, this, &LammpsGui::start_tutorial1);
     connect(ui->actionTutorial2, &QAction::triggered, this, &LammpsGui::start_tutorial2);
+    connect(ui->actionTutorial3, &QAction::triggered, this, &LammpsGui::start_tutorial3);
+    connect(ui->actionTutorial4, &QAction::triggered, this, &LammpsGui::start_tutorial4);
+    connect(ui->actionTutorial5, &QAction::triggered, this, &LammpsGui::start_tutorial5);
+    connect(ui->actionTutorial6, &QAction::triggered, this, &LammpsGui::start_tutorial6);
+    connect(ui->actionTutorial7, &QAction::triggered, this, &LammpsGui::start_tutorial7);
+    connect(ui->actionTutorial8, &QAction::triggered, this, &LammpsGui::start_tutorial8);
     connect(ui->actionAbout_LAMMPS_GUI, &QAction::triggered, this, &LammpsGui::about);
     connect(ui->action_Help, &QAction::triggered, this, &LammpsGui::help);
     connect(ui->actionLAMMPS_GUI_Howto, &QAction::triggered, this, &LammpsGui::howto);
@@ -438,9 +444,7 @@ void LammpsGui::open_recent()
 void LammpsGui::get_directory()
 {
     if (wizard) {
-        // figure out which wizard we are following
-        auto *line = wizard->findChild<QLineEdit *>("t1_directory");
-        if (!line) line = wizard->findChild<QLineEdit *>("t2_directory");
+        auto *line = wizard->findChild<QLineEdit *>("t_directory");
         if (line) {
             auto curdir = line->text();
             QFileDialog dialog(this, "Choose Directory for Tutorial Files", curdir);
@@ -1560,287 +1564,313 @@ void LammpsGui::tutorial_web()
     QDesktopServices::openUrl(QUrl("https://lammpstutorials.github.io/"));
 }
 
+QWizardPage *LammpsGui::tutorial_intro(const int ntutorial)
+{
+    auto *page = new QWizardPage;
+    page->setTitle(QString("Getting Started With Tutorial %1").arg(ntutorial));
+    page->setPixmap(QWizard::WatermarkPixmap,
+                    QPixmap(QString(":/icons/tutorial%1-logo.png").arg(ntutorial)));
+
+    // XXX TODO: update URL to published tutorial DOI
+    auto *label = new QLabel(
+        QString("<p>This wizard will help you to select and populate a folder with materials "
+                "required to work through tutorial %1 from the LAMMPS tutorials article by "
+                "Simon Gravelle, Jake Gissinger, and Axel Kohlmeyer.</p>\nThe materials for this "
+                "tutorial are downloaded from:<br><b><a "
+                "href=\"https://github.com/lammpstutorials/lammpstutorials-article\">github.com/"
+                "lammpstutorials/lammpstutorials-article</a></b></p><br>\n<hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to begin.</p>")
+            .arg(ntutorial));
+    label->setWordWrap(true);
+
+    auto *layout = new QVBoxLayout;
+    layout->addWidget(label);
+    page->setLayout(layout);
+    return page;
+}
+
+QWizardPage *LammpsGui::tutorial_info(const int ntutorial, const QString &infotext)
+{
+    auto *page = new QWizardPage;
+    page->setTitle(QString("Contents of Tutorial %1").arg(ntutorial));
+    page->setPixmap(QWizard::WatermarkPixmap,
+                    QPixmap(QString(":/icons/tutorial%1-logo.png").arg(ntutorial)));
+
+    auto *label = new QLabel(infotext);
+    label->setWordWrap(true);
+
+    auto *layout = new QVBoxLayout;
+    layout->addWidget(label);
+    page->setLayout(layout);
+    return page;
+}
+
+QWizardPage *LammpsGui::tutorial_directory(const int ntutorial)
+{
+    auto *page = new QWizardPage;
+    page->setTitle(QString("Select Directory for Tutorial %1").arg(ntutorial));
+    page->setPixmap(QWizard::WatermarkPixmap,
+                    QPixmap(QString(":/icons/tutorial%1-logo.png").arg(ntutorial)));
+
+    auto *frame = new QFrame;
+    auto *label = new QLabel(
+        QString("<p>Select a directory to store the files for tutorial %1.  The directory will be "
+                "created if necessary and LAMMPS-GUI will download the files required for the "
+                "tutorial.</p>\n<p>If selected, an existing directory may be "
+                "cleared.</p>\n<p>Also, available files of the tutorial solution may be downloaded "
+                "to a folder \"solution\", if requested.</p>\n<hr width=\"33%\">\n")
+            .arg(ntutorial));
+    label->setWordWrap(true);
+
+    auto *dirlayout = new QHBoxLayout;
+    auto *directory = new QLineEdit;
+
+    // if we are already in a tutorial folder, stay there or pick folder in same parent dir
+    bool haveDir = false;
+    for (int i = 1; i < 99; ++i) {
+        if (current_dir.endsWith(QString("tutorial%1").arg(i))) {
+            if (i > 9) { // We assume there are no more than 99 tutorials
+                current_dir.chop(2);
+            } else {
+                current_dir.chop(1);
+            }
+            current_dir.append(QString::number(ntutorial));
+            haveDir = true;
+        }
+    }
+
+    // if current dir is home, or application folder, switch to desktop path
+    if ((current_dir == QDir::homePath()) || current_dir.contains("AppData") ||
+        current_dir.contains("Program Files")) {
+        current_dir = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    }
+    if (!haveDir) current_dir.append(QString("/tutorial%1").arg(ntutorial));
+    directory->setText(current_dir);
+
+    auto *dirbutton = new QPushButton("&Choose");
+    dirlayout->addWidget(directory);
+    dirlayout->addWidget(dirbutton);
+    directory->setObjectName("t_directory");
+    connect(dirbutton, &QPushButton::released, this, &LammpsGui::get_directory);
+
+    auto *grid       = new QGridLayout;
+    auto *purgeval   = new QCheckBox;
+    auto *solval     = new QCheckBox;
+    auto *purgelabel = new QLabel("Remove existing files from directory");
+    auto *sollabel   = new QLabel("Download solutions");
+    purgeval->setCheckState(Qt::Unchecked);
+    purgeval->setObjectName("t_dirpurge");
+    solval->setCheckState(Qt::Unchecked);
+    solval->setObjectName("t_getsolution");
+    grid->addWidget(purgeval, 0, 0, Qt::AlignVCenter);
+    grid->addWidget(purgelabel, 0, 1, Qt::AlignVCenter);
+    grid->addWidget(solval, 1, 0, Qt::AlignVCenter);
+    grid->addWidget(sollabel, 1, 1, Qt::AlignVCenter);
+    grid->setColumnStretch(0, 0);
+    grid->setColumnStretch(1, 100);
+
+    auto *layout = new QVBoxLayout(frame);
+    layout->addWidget(label);
+    layout->addLayout(dirlayout);
+    layout->addLayout(grid);
+
+    page->setLayout(layout);
+    return page;
+}
+
+QWizardPage *LammpsGui::tutorial_finish(const int ntutorial)
+{
+    auto *page = new QWizardPage;
+    page->setTitle(QString("Start Tutorial %1").arg(ntutorial));
+    page->setPixmap(QWizard::WatermarkPixmap,
+                    QPixmap(QString(":/icons/tutorial%1-logo.png").arg(ntutorial)));
+    auto *label = new QLabel(QString("<p align=\"center\">You are now ready to start tutorial "
+                                     "%1.</p>\n<hr width=\"33%\"\\>\n<p align=\"center\">Click on "
+                                     "the \"Finish\" button to complete the setup.</p>")
+                                 .arg(ntutorial));
+    label->setWordWrap(true);
+
+    auto *layout = new QVBoxLayout;
+    layout->addWidget(label);
+    layout->setStretch(0, 100);
+
+    page->setLayout(layout);
+    return page;
+}
+
 void LammpsGui::start_tutorial1()
 {
     if (wizard) delete wizard;
-    wizard = new Tutorial1Wizard;
+    wizard = new TutorialWizard(1);
+    const auto infotext =
+        QString("<p>In tutorial 1 you will learn about LAMMPS input files, their syntax and "
+                "structure, how to create and set up models and their interactions, how to run a "
+                "minimization and a molecular dynamics trajectory, how to plot thermodynamic data "
+                "and how to create visualizations of your system</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
-    wizard->addPage(tutorial1_intro());
-    wizard->addPage(tutorial1_info());
-    wizard->addPage(tutorial1_directory());
-    wizard->addPage(tutorial1_finish());
+    wizard->addPage(tutorial_intro(1));
+    wizard->addPage(tutorial_info(1, infotext));
+    wizard->addPage(tutorial_directory(1));
+    wizard->addPage(tutorial_finish(1));
     wizard->setWindowTitle("Tutorial 1 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial1_intro()
-{
-    auto *page = new QWizardPage;
-    page->setTitle("Getting Started With Tutorial 1");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial1-logo.png"));
-
-    // XXX TODO: update URL to published tutorial DOI
-    auto *label =
-        new QLabel("<p>This wizard will help you to select and populate a folder with "
-                   "materials required to work through tutorial 1 from a fourthcoming "
-                   "LAMMPS tutorial using LAMMPS-GUI by Simon Gravelle, Jake Gissinger, "
-                   "and Axel Kohlmeyer.</p>\n"
-                   "The work-in-progress materials for this tutorial are available at: <a"
-                   "<b><a href=\"https://github.com/lammpstutorials/lammpstutorials-article\">"
-                   "github.com/lammpstutorials/lammpstutorials-article</a></b></p><br>\n"
-                   "<hr width=\"33%\"\\>\n"
-                   "<p align=\"center\">Click on the \"Next\" button to begin.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    page->setLayout(layout);
-    return page;
-}
-
-QWizardPage *LammpsGui::tutorial1_info()
-{
-    auto *page = new QWizardPage;
-    page->setTitle("Contents of Tutorial 1");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial1-logo.png"));
-
-    auto *label =
-        new QLabel("<p>In tutorial 1 you will learn about LAMMPS input files, their syntax and "
-                   " structure, how to create and set up models and their interactions, how to "
-                   "run a minimization and a molecular dynamics trajectory, how to plot "
-                   "thermodynamic data and how to create visualizations of your system</p>"
-                   "<hr width=\"33%\"\\>\n"
-                   "<p align=\"center\">Click on the \"Next\" button to select a folder.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    page->setLayout(layout);
-    return page;
-}
-
-QWizardPage *LammpsGui::tutorial1_directory()
-{
-    auto *page = new QWizardPage;
-    page->setTitle("Select Directory for Tutorial 1");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial1-logo.png"));
-
-    auto *frame = new QFrame;
-    auto *label = new QLabel(
-        "<p>Select a directory to store the files for tutorial 1.  The directory will be "
-        "created if necessary and LAMMPS-GUI will download the files required for the "
-        "tutorial.</p>\n"
-        "<p>If selected, an existing directory may be cleared.</p>\n"
-        "<p>Also, available files of the tutorial solution may be downloaded to a "
-        "folder \"solution\", if requested.</p>\n"
-        "<hr width=\"33%\">\n");
-    label->setWordWrap(true);
-
-    auto *dirlayout = new QHBoxLayout;
-    auto *directory = new QLineEdit;
-    // if we are already in the tutorial folder, stay there
-    if (!current_dir.endsWith("tutorial1")) {
-        // if current dir is home, or application folder, switch to desktop path
-        if ((current_dir == QDir::homePath()) || current_dir.contains("AppData") ||
-            current_dir.contains("Program Files")) {
-            current_dir = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-        }
-        current_dir += "/tutorial1";
-    }
-    directory->setText(current_dir);
-
-    auto *dirbutton = new QPushButton("&Choose");
-    dirlayout->addWidget(directory);
-    dirlayout->addWidget(dirbutton);
-    directory->setObjectName("t1_directory");
-    connect(dirbutton, &QPushButton::released, this, &LammpsGui::get_directory);
-
-    auto *grid       = new QGridLayout;
-    auto *purgeval   = new QCheckBox;
-    auto *solval     = new QCheckBox;
-    auto *purgelabel = new QLabel("Remove existing files from directory");
-    auto *sollabel   = new QLabel("Download solutions");
-    purgeval->setCheckState(Qt::Unchecked);
-    purgeval->setObjectName("t1_dirpurge");
-    solval->setCheckState(Qt::Unchecked);
-    solval->setObjectName("t1_getsolution");
-    grid->addWidget(purgeval, 0, 0, Qt::AlignVCenter);
-    grid->addWidget(purgelabel, 0, 1, Qt::AlignVCenter);
-    grid->addWidget(solval, 1, 0, Qt::AlignVCenter);
-    grid->addWidget(sollabel, 1, 1, Qt::AlignVCenter);
-    grid->setColumnStretch(0, 0);
-    grid->setColumnStretch(1, 100);
-
-    auto *layout = new QVBoxLayout(frame);
-    layout->addWidget(label);
-    layout->addLayout(dirlayout);
-    layout->addLayout(grid);
-
-    page->setLayout(layout);
-    return page;
-}
-
-QWizardPage *LammpsGui::tutorial1_finish()
-{
-    auto *page = new QWizardPage;
-    page->setTitle("Start Tutorial 1");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial1-logo.png"));
-
-    auto *label = new QLabel("<p align=\"center\">You are now ready to start tutorial 1.</p>\n"
-                             "<hr width=\"33%\"\\>\n"
-                             "<p align=\"center\">Click on the \"Finish\" button to "
-                             "complete the setup.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    layout->setStretch(0, 100);
-
-    page->setLayout(layout);
-    return page;
-}
-
 void LammpsGui::start_tutorial2()
 {
     if (wizard) delete wizard;
-    wizard = new Tutorial2Wizard;
-    wizard->addPage(tutorial2_intro());
-    wizard->addPage(tutorial2_info());
-    wizard->addPage(tutorial2_directory());
-    wizard->addPage(tutorial2_finish());
+    wizard = new TutorialWizard(2);
+    const auto infotext =
+        QString("<p>In tutorial 2 you will learn about setting up a simulation for a molecular "
+                "system with bonds.  The target is to simulate a carbon nanotube with a "
+                "conventional molecular force field under growing strain and observe the response "
+                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
+                "This is then compared to simulating the same system with a reactive force field "
+                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(2));
+    wizard->addPage(tutorial_info(2, infotext));
+    wizard->addPage(tutorial_directory(2));
+    wizard->addPage(tutorial_finish(2));
     wizard->setWindowTitle("Tutorial 2 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial2_intro()
+void LammpsGui::start_tutorial3()
 {
-    auto *page = new QWizardPage;
-    page->setTitle("Getting Started With Tutorial 2");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial2-logo.png"));
+    if (wizard) delete wizard;
+    wizard = new TutorialWizard(3);
+    const auto infotext =
+        QString("<p>In tutorial 3 you will learn about setting up a simulation for a molecular "
+                "system with bonds.  The target is to simulate a carbon nanotube with a "
+                "conventional molecular force field under growing strain and observe the response "
+                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
+                "This is then compared to simulating the same system with a reactive force field "
+                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
 
-    // XXX TODO: update URL to published tutorial DOI
-    auto *label =
-        new QLabel("<p>This wizard will help you to select and populate a folder with "
-                   "materials required to work through tutorial 2 from a fourthcoming "
-                   "LAMMPS tutorial using LAMMPS-GUI by Simon Gravelle, Jake Gissinger, "
-                   "and Axel Kohlmeyer.</p>\n"
-                   "The work-in-progress materials for this tutorial are available at: <a"
-                   "<b><a href=\"https://github.com/lammpstutorials/lammpstutorials-article\">"
-                   "github.com/lammpstutorials/lammpstutorials-article</a></b></p><br>\n"
-                   "<hr width=\"33%\"\\>\n"
-                   "<p align=\"center\">Click on the \"Next\" button to begin.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    page->setLayout(layout);
-    return page;
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(3));
+    wizard->addPage(tutorial_info(3, infotext));
+    wizard->addPage(tutorial_directory(3));
+    wizard->addPage(tutorial_finish(3));
+    wizard->setWindowTitle("Tutorial 3 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial2_info()
+void LammpsGui::start_tutorial4()
 {
-    auto *page = new QWizardPage;
-    page->setTitle("Contents of Tutorial 2");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial2-logo.png"));
-
-    auto *label =
-        new QLabel("<p>In tutorial 2 you will learn about setting up a simulation for a molecular "
-                   "system with bonds.  The target is to simulate a carbon nanotube with a "
-                   "conventional molecular force field under growing strain and observe the "
-                   "response to it.  Since bonds are represented by a harmonic potential, they "
-                   "cannot break.  This is then compared to simulating the same system with a "
-                   "reactive force field (AIREBO) where bonds may be broken and formed.</p>"
-                   "<hr width=\"33%\"\\>\n"
-                   "<p align=\"center\">Click on the \"Next\" button to select a folder.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    page->setLayout(layout);
-    return page;
+    if (wizard) delete wizard;
+    wizard = new TutorialWizard(4);
+    const auto infotext =
+        QString("<p>In tutorial 4 you will learn about setting up a simulation for a molecular "
+                "system with bonds.  The target is to simulate a carbon nanotube with a "
+                "conventional molecular force field under growing strain and observe the response "
+                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
+                "This is then compared to simulating the same system with a reactive force field "
+                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(4));
+    wizard->addPage(tutorial_info(4, infotext));
+    wizard->addPage(tutorial_directory(4));
+    wizard->addPage(tutorial_finish(4));
+    wizard->setWindowTitle("Tutorial 4 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial2_directory()
+void LammpsGui::start_tutorial5()
 {
-    auto *page = new QWizardPage;
-    page->setTitle("Select Directory for Tutorial 2");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial2-logo.png"));
-
-    auto *frame = new QFrame;
-    auto *label = new QLabel(
-        "<p>Select a directory to store the files for tutorial 2.  The directory will be "
-        "created if necessary and LAMMPS-GUI will download the files required for the "
-        "tutorial.</p>\n"
-        "<p>If selected, an existing directory may be cleared.</p>\n"
-        "<p>Also, available files of the tutorial solution may be downloaded to a "
-        "folder \"solution\", if requested.</p>\n"
-        "<hr width=\"33%\">\n");
-    label->setWordWrap(true);
-
-    auto *dirlayout = new QHBoxLayout;
-    auto *directory = new QLineEdit;
-    // if we are already in the tutorial folder, stay there
-    if (!current_dir.endsWith("tutorial2")) {
-        // if current dir is home, or application folder, switch to desktop path
-        if ((current_dir == QDir::homePath()) || current_dir.contains("AppData") ||
-            current_dir.contains("Program Files")) {
-            current_dir = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-        }
-        current_dir += "/tutorial2";
-    }
-    directory->setText(current_dir);
-
-    auto *dirbutton = new QPushButton("&Choose");
-    dirlayout->addWidget(directory);
-    dirlayout->addWidget(dirbutton);
-    directory->setObjectName("t2_directory");
-    connect(dirbutton, &QPushButton::released, this, &LammpsGui::get_directory);
-
-    auto *grid       = new QGridLayout;
-    auto *purgeval   = new QCheckBox;
-    auto *solval     = new QCheckBox;
-    auto *purgelabel = new QLabel("Remove existing files from directory");
-    auto *sollabel   = new QLabel("Download solutions");
-    purgeval->setCheckState(Qt::Unchecked);
-    purgeval->setObjectName("t2_dirpurge");
-    solval->setCheckState(Qt::Unchecked);
-    solval->setObjectName("t2_getsolution");
-    grid->addWidget(purgeval, 0, 0, Qt::AlignVCenter);
-    grid->addWidget(purgelabel, 0, 1, Qt::AlignVCenter);
-    grid->addWidget(solval, 1, 0, Qt::AlignVCenter);
-    grid->addWidget(sollabel, 1, 1, Qt::AlignVCenter);
-    grid->setColumnStretch(0, 0);
-    grid->setColumnStretch(1, 100);
-
-    auto *layout = new QVBoxLayout(frame);
-    layout->addWidget(label);
-    layout->addLayout(dirlayout);
-    layout->addLayout(grid);
-
-    page->setLayout(layout);
-    return page;
+    if (wizard) delete wizard;
+    wizard = new TutorialWizard(5);
+    const auto infotext =
+        QString("<p>In tutorial 5 you will learn about setting up a simulation for a molecular "
+                "system with bonds.  The target is to simulate a carbon nanotube with a "
+                "conventional molecular force field under growing strain and observe the response "
+                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
+                "This is then compared to simulating the same system with a reactive force field "
+                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(5));
+    wizard->addPage(tutorial_info(5, infotext));
+    wizard->addPage(tutorial_directory(5));
+    wizard->addPage(tutorial_finish(5));
+    wizard->setWindowTitle("Tutorial 5 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial2_finish()
+void LammpsGui::start_tutorial6()
 {
-    auto *page = new QWizardPage;
-    page->setTitle("Start Tutorial 2");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial2-logo.png"));
+    if (wizard) delete wizard;
+    wizard = new TutorialWizard(6);
+    const auto infotext =
+        QString("<p>In tutorial 6 you will learn about setting up a simulation for a molecular "
+                "system with bonds.  The target is to simulate a carbon nanotube with a "
+                "conventional molecular force field under growing strain and observe the response "
+                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
+                "This is then compared to simulating the same system with a reactive force field "
+                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(6));
+    wizard->addPage(tutorial_info(6, infotext));
+    wizard->addPage(tutorial_directory(6));
+    wizard->addPage(tutorial_finish(6));
+    wizard->setWindowTitle("Tutorial 6 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
+}
 
-    auto *label = new QLabel("<p align=\"center\">You are now ready to start tutorial 2.</p>\n"
-                             "<hr width=\"33%\"\\>\n"
-                             "<p align=\"center\">Click on the \"Finish\" button to "
-                             "complete the setup.</p>");
-    label->setWordWrap(true);
+void LammpsGui::start_tutorial7()
+{
+    if (wizard) delete wizard;
+    wizard = new TutorialWizard(7);
+    const auto infotext =
+        QString("<p>In tutorial 7 you will learn about setting up a simulation for a molecular "
+                "system with bonds.  The target is to simulate a carbon nanotube with a "
+                "conventional molecular force field under growing strain and observe the response "
+                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
+                "This is then compared to simulating the same system with a reactive force field "
+                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(7));
+    wizard->addPage(tutorial_info(7, infotext));
+    wizard->addPage(tutorial_directory(7));
+    wizard->addPage(tutorial_finish(7));
+    wizard->setWindowTitle("Tutorial 7 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
+}
 
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    layout->setStretch(0, 100);
-
-    page->setLayout(layout);
-    return page;
+void LammpsGui::start_tutorial8()
+{
+    if (wizard) delete wizard;
+    wizard = new TutorialWizard(8);
+    const auto infotext =
+        QString("<p>In tutorial 8 you will learn about setting up a simulation for a molecular "
+                "system with bonds.  The target is to simulate a carbon nanotube with a "
+                "conventional molecular force field under growing strain and observe the response "
+                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
+                "This is then compared to simulating the same system with a reactive force field "
+                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(8));
+    wizard->addPage(tutorial_info(8, infotext));
+    wizard->addPage(tutorial_directory(8));
+    wizard->addPage(tutorial_finish(8));
+    wizard->setWindowTitle("Tutorial 8 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
 }
 
 void LammpsGui::howto()
@@ -1983,12 +2013,12 @@ void LammpsGui::start_lammps()
     lammps.open(narg, args);
     lammpsstatus->show();
 
-    // must have a version newer than the 2 August 2023 release of LAMMPS
+    // must have a version newer than the 29 August 2024 release of LAMMPS
     // TODO: must update this check before next feature release
-    if (lammps.version() <= 20230802) {
+    if (lammps.version() < 20240829) {
         QMessageBox::critical(this, "Incompatible LAMMPS Version",
                               "LAMMPS-GUI version " LAMMPS_GUI_VERSION " requires\n"
-                              "a LAMMPS version more recent than 2 August 2023");
+                              "a LAMMPS version of at least 29 August 2024");
         exit(1);
     }
 
@@ -2017,7 +2047,8 @@ bool LammpsGui::eventFilter(QObject *watched, QEvent *event)
 }
 
 // LAMMPS geturl command with current location of the input and solution files on the web
-static const QString geturl = "geturl https://raw.githubusercontent.com/lammpstutorials/"
+static const QString geturl =
+    "geturl https://raw.githubusercontent.com/lammpstutorials/"
     "lammpstutorials-article/refs/heads/main/files/tutorial%1/%2 output %2 verify no";
 
 void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, bool getsolution)
@@ -2071,7 +2102,8 @@ void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, boo
     if (!first.isEmpty()) open_file(first);
 }
 
-Tutorial1Wizard::Tutorial1Wizard(QWidget *parent) : QWizard(parent)
+TutorialWizard::TutorialWizard(int ntutorial, QWidget *parent) :
+    QWizard(parent), _ntutorial(ntutorial)
 {
     setWindowIcon(QIcon(":/icons/tutorial-logo.png"));
 }
@@ -2079,12 +2111,12 @@ Tutorial1Wizard::Tutorial1Wizard(QWidget *parent) : QWizard(parent)
 // actions to perform when the wizard for tutorial 1 is complete
 // and the user has clicked on "Finish"
 
-void Tutorial1Wizard::accept()
+void TutorialWizard::accept()
 {
     // get pointers to the widgets with the information we need
-    auto *dirname  = findChild<QLineEdit *>("t1_directory");
-    auto *dirpurge = findChild<QCheckBox *>("t1_dirpurge");
-    auto *getsol   = findChild<QCheckBox *>("t1_getsolution");
+    auto *dirname  = findChild<QLineEdit *>("t_directory");
+    auto *dirpurge = findChild<QCheckBox *>("t_dirpurge");
+    auto *getsol   = findChild<QCheckBox *>("t_getsolution");
 
     // create and populate directory.
     if (dirname) {
@@ -2092,8 +2124,8 @@ void Tutorial1Wizard::accept()
         auto curdir = dirname->text().trimmed();
         if (!directory.mkpath(curdir)) {
             QMessageBox::warning(this, "Warning",
-                                 "Cannot create tutorial 1 working directory " + curdir +
-                                     ".\n\nGoing back to directory selection.");
+                                 "Cannot create tutorial working directory '" + curdir +
+                                     "'.\n\nGoing back to directory selection.");
             back();
             return;
         }
@@ -2105,46 +2137,7 @@ void Tutorial1Wizard::accept()
         LammpsGui *main = nullptr;
         for (QWidget *widget : QApplication::topLevelWidgets())
             if (widget->objectName() == "LammpsGui") main = dynamic_cast<LammpsGui *>(widget);
-        if (main) main->setup_tutorial(1, curdir, purgedir, getsolution);
-    }
-    QDialog::accept();
-}
-
-Tutorial2Wizard::Tutorial2Wizard(QWidget *parent) : QWizard(parent)
-{
-    setWindowIcon(QIcon(":/icons/tutorial-logo.png"));
-}
-
-// actions to perform when the wizard for tutorial 2 is complete
-// and the user has clicked on "Finish"
-
-void Tutorial2Wizard::accept()
-{
-    // get pointers to the widgets with the information we need
-    auto *dirname  = findChild<QLineEdit *>("t2_directory");
-    auto *dirpurge = findChild<QCheckBox *>("t2_dirpurge");
-    auto *getsol   = findChild<QCheckBox *>("t2_getsolution");
-
-    // create and populate directory.
-    if (dirname) {
-        QDir directory;
-        auto curdir = dirname->text().trimmed();
-        if (!directory.mkpath(curdir)) {
-            QMessageBox::warning(this, "Warning",
-                                 "Cannot create tutorial 2 working directory " + curdir +
-                                     ".\n\nGoing back to directory selection.");
-            back();
-            return;
-        }
-
-        bool purgedir    = dirpurge && (dirpurge->checkState() == Qt::Checked);
-        bool getsolution = getsol && (getsol->checkState() == Qt::Checked);
-
-        // get hold of LAMMPS-GUI main widget
-        LammpsGui *main = nullptr;
-        for (QWidget *widget : QApplication::topLevelWidgets())
-            if (widget->objectName() == "LammpsGui") main = dynamic_cast<LammpsGui *>(widget);
-        if (main) main->setup_tutorial(2, curdir, purgedir, getsolution);
+        if (main) main->setup_tutorial(_ntutorial, curdir, purgedir, getsolution);
     }
     QDialog::accept();
 }
