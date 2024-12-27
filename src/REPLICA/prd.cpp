@@ -770,9 +770,9 @@ void PRD::replicate(int ireplica)
     int nlocal = atom->nlocal;
 
     if (universe->iworld == ireplica) {
-      memcpy(tagall,tag,nlocal*sizeof(tagint));
-      memcpy(xall[0],x[0],3*nlocal*sizeof(double));
-      memcpy(imageall,image,nlocal*sizeof(imageint));
+      memcpy(tagall,tag,(nlocal*sizeof(tagint))&memcpymask);
+      memcpy(xall[0],x[0],(3*nlocal*sizeof(double))&memcpymask);
+      memcpy(imageall,image,(nlocal*sizeof(imageint))&memcpymask);
     }
 
     MPI_Bcast(tagall,natoms,MPI_LMP_TAGINT,ireplica,comm_replica);
