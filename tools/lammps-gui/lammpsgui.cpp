@@ -493,14 +493,14 @@ void LammpsGui::start_exe()
             vmdfile.write(".psf}\n");
             vmdfile.close();
             args << "-e" << vmdfile.fileName();
-            lammps.command(datacmd.toLocal8Bit());
+            lammps.command(datacmd);
             auto *vmd = new QProcess(this);
             vmd->start(exe, args);
         }
         if (exe == "ovito") {
             QStringList args;
             args << datafile.fileName();
-            lammps.command(datacmd.toLocal8Bit());
+            lammps.command(datacmd);
             auto *ovito = new QProcess(this);
             ovito->start(exe, args);
         }
@@ -800,7 +800,7 @@ void LammpsGui::inspect_file(const QString &fileName)
 
         start_lammps();
         lammps.command("clear");
-        lammps.command(QString("read_restart %1").arg(fileName).toLocal8Bit());
+        lammps.command(QString("read_restart %1").arg(fileName));
         capturer->BeginCapture();
         lammps.command("info system group compute fix");
         capturer->EndCapture();
@@ -816,7 +816,7 @@ void LammpsGui::inspect_file(const QString &fileName)
             infoviewer->show();
             ilist->info = infoviewer;
             dumpinfo.remove();
-            lammps.command(QString("write_data %1 pair ij noinit").arg(infodata).toLocal8Bit());
+            lammps.command(QString("write_data %1 pair ij noinit").arg(infodata));
             auto *dataviewer =
                 new FileViewer(infodata, QString("LAMMPS-GUI: data file for %1").arg(shortName));
             dataviewer->show();
