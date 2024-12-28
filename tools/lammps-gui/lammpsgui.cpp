@@ -2077,6 +2077,7 @@ void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, boo
 
     QFile manifest(".manifest");
     QString line, first;
+    QList<QString> downloads;
     if (manifest.open(QIODevice::ReadOnly)) {
         while (!manifest.atEnd()) {
             line = (const char *)manifest.readLine();
@@ -2088,17 +2089,35 @@ void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, boo
             // file in subfolder
             if (line.contains('/')) {
                 if (getsolution && line.startsWith("solution")) {
-                    lammps.command(geturl.arg(tutno).arg(line).toStdString().c_str());
+                    downloads.append(geturl.arg(tutno).arg(line));
                 }
             } else {
                 // first file is the initial template
                 if (first.isEmpty()) first = line;
-                lammps.command(geturl.arg(tutno).arg(line).toStdString().c_str());
+                downloads.append(geturl.arg(tutno).arg(line));
             }
         }
         manifest.close();
         manifest.remove();
     }
+    int i   = 0;
+    int num = downloads.size();
+    if (!num) num = 1;
+    progress->setValue(0);
+    progress->show();
+    dirstatus->hide();
+    for (const auto &file : downloads) {
+        ++i;
+        status->setText(QString("Downloading file %1 of %2").arg(i).arg(num));
+        status->repaint();
+        lammps.command(file);
+        progress->setValue((int)((double)i / ((double)num) * 1000.0));
+    }
+    progress->setValue(1000);
+    status->setText("Ready.");
+    progress->hide();
+    dirstatus->show();
+    status->repaint();
     if (!first.isEmpty()) open_file(first);
 }
 
@@ -2114,32 +2133,38 @@ TutorialWizard::TutorialWizard(int ntutorial, QWidget *parent) :
 void TutorialWizard::accept()
 {
     // get pointers to the widgets with the information we need
-    auto *dirname  = findChild<QLineEdit *>("t_directory");
-    auto *dirpurge = findChild<QCheckBox *>("t_dirpurge");
-    auto *getsol   = findChild<QCheckBox *>("t_getsolution");
+    auto *dirname    = findChild<QLineEdit *>("t_directory");
+    auto *dirpurge   = findChild<QCheckBox *>("t_dirpurge");
+    auto *getsol     = findChild<QCheckBox *>("t_getsolution");
+    bool purgedir    = false;
+    bool getsolution = false;
+    QString curdir;
 
     // create and populate directory.
     if (dirname) {
         QDir directory;
-        auto curdir = dirname->text().trimmed();
+        curdir = dirname->text().trimmed();
         if (!directory.mkpath(curdir)) {
             QMessageBox::warning(this, "Warning",
-                                 "Cannot create tutorial working directory '" + curdir +
+                                 "Cannot create tutorial " + QString::number(_ntutorial) +
+                                     " working directory '" + curdir +
                                      "'.\n\nGoing back to directory selection.");
             back();
             return;
         }
 
-        bool purgedir    = dirpurge && (dirpurge->checkState() == Qt::Checked);
-        bool getsolution = getsol && (getsol->checkState() == Qt::Checked);
+        purgedir    = dirpurge && (dirpurge->checkState() == Qt::Checked);
+        getsolution = getsol && (getsol->checkState() == Qt::Checked);
+    }
+    QDialog::accept();
 
-        // get hold of LAMMPS-GUI main widget
+    // get hold of LAMMPS-GUI main widget
+    if (dirname) {
         LammpsGui *main = nullptr;
         for (QWidget *widget : QApplication::topLevelWidgets())
             if (widget->objectName() == "LammpsGui") main = dynamic_cast<LammpsGui *>(widget);
         if (main) main->setup_tutorial(_ntutorial, curdir, purgedir, getsolution);
     }
-    QDialog::accept();
 }
 
 // Local Variables:
