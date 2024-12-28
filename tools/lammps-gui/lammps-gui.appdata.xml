@@ -58,6 +58,7 @@
       <description>
         Update Tutorial menu entries to cover all 8 tutorials
         Highlight warnings and error messages in Output window
+        Make Tutorial wizards more compact
       </description>
     </release>
     <release version="1.6.11" timestamp="1725080055">

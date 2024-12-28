@@ -17,6 +17,7 @@
 #include <QPlainTextEdit>
 
 class FlagWarnings;
+class QLabel;
 
 class LogWindow : public QPlainTextEdit {
     Q_OBJECT
@@ -30,6 +31,7 @@ private slots:
     void quit();
     void save_as();
     void stop_run();
+    void next_warning();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -41,6 +43,7 @@ private:
     QString filename;
     static const QString yaml_regex;
     FlagWarnings *warnings;
+    QLabel *summary;
 };
 
 #endif

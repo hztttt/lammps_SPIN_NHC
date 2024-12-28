@@ -20,13 +20,18 @@
 #include <QApplication>
 #include <QFile>
 #include <QFileDialog>
+#include <QGridLayout>
+#include <QHBoxLayout>
 #include <QIcon>
 #include <QKeySequence>
+#include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QShortcut>
+#include <QSpacerItem>
 #include <QString>
 #include <QTextStream>
 
@@ -39,7 +44,29 @@ LogWindow::LogWindow(const QString &_filename, QWidget *parent) :
     QSettings settings;
     resize(settings.value("logx", 500).toInt(), settings.value("logy", 320).toInt());
 
-    warnings = new FlagWarnings(document());
+    summary = new QLabel("0 Warnings / Errors  -  0 Lines");
+    summary->setMargin(1);
+
+    auto *frame = new QFrame;
+    frame->setAutoFillBackground(true);
+    frame->setFrameStyle(QFrame::Box | QFrame::Plain);
+    frame->setLineWidth(2);
+
+    auto *button = new QPushButton(QIcon(":/icons/warning.png"), "");
+    button->setToolTip("Jump to next warning");
+    connect(button, &QPushButton::released, this, &LogWindow::next_warning);
+
+    auto *spacer = new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    auto *panel  = new QHBoxLayout(frame);
+    auto *grid   = new QGridLayout(this);
+
+    panel->addWidget(summary);
+    panel->addWidget(button);
+
+    grid->addItem(spacer, 0, 0, 1, 3);
+    grid->addWidget(frame, 1, 1, 1, 1);
+
+    warnings = new FlagWarnings(summary, document());
 
     auto *action = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_S), this);
     connect(action, &QShortcut::activated, this, &LogWindow::save_as);
@@ -56,6 +83,7 @@ LogWindow::LogWindow(const QString &_filename, QWidget *parent) :
 LogWindow::~LogWindow()
 {
     delete warnings;
+    delete summary;
 }
 
 void LogWindow::closeEvent(QCloseEvent *event)
@@ -82,6 +110,22 @@ void LogWindow::stop_run()
     for (QWidget *widget : QApplication::topLevelWidgets())
         if (widget->objectName() == "LammpsGui") main = dynamic_cast<LammpsGui *>(widget);
     if (main) main->stop_run();
+}
+
+void LogWindow::next_warning()
+{
+    auto *doc  = document();
+    auto regex = QRegularExpression(QStringLiteral("^(ERROR|WARNING).*$"));
+
+    if (warnings->get_nwarnings() > 0) {
+        // wrap around search
+        if (!this->find(regex)) {
+            this->moveCursor(QTextCursor::Start, QTextCursor::MoveAnchor);
+            this->find(regex);
+        }
+        // move cursor to unselect
+        this->moveCursor(QTextCursor::NextBlock, QTextCursor::MoveAnchor);
+    }
 }
 
 void LogWindow::save_as()

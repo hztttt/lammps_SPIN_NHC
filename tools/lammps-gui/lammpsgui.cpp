@@ -1244,7 +1244,7 @@ void LammpsGui::do_run(bool use_buffer)
     logwindow->setCenterOnScroll(true);
     logwindow->moveCursor(QTextCursor::End);
     logwindow->setWindowTitle(
-        QString("LAMMPS-GUI - Output - %2 - Run %3").arg(current_file).arg(run_counter));
+        QString("LAMMPS-GUI - Output - %1 - Run %2").arg(current_file).arg(run_counter));
     logwindow->setWindowIcon(QIcon(":/icons/lammps-icon-128x128.png"));
     QFont text_font;
     text_font.fromString(settings.value("textfont", text_font.toString()).toString());

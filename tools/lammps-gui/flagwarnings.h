@@ -18,11 +18,15 @@
 #include <QSyntaxHighlighter>
 #include <QTextCharFormat>
 
+class QLabel;
+class QTextDocument;
+
 class FlagWarnings : public QSyntaxHighlighter {
     Q_OBJECT
 
 public:
-    FlagWarnings(QTextDocument *parent = 0);
+    FlagWarnings(QLabel *label = 0, QTextDocument *parent = 0);
+    int get_nwarnings() const { return nwarnings; }
 
 protected:
     void highlightBlock(const QString &text) override;
@@ -30,6 +34,9 @@ protected:
 private:
     QRegularExpression isWarning;
     QTextCharFormat formatWarning;
+    QLabel *summary;
+    QTextDocument *document;
+    int nwarnings, nlines;
 };
 #endif
 // Local Variables:
