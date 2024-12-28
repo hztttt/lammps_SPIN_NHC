@@ -83,10 +83,8 @@ protected:
     void setDocver();
     void autoSave();
     void setFont(const QFont &newfont);
-    QWizardPage *tutorial_intro(const int ntutorial);
-    QWizardPage *tutorial_info(const int ntutorial, const QString &infotext);
+    QWizardPage *tutorial_intro(const int ntutorial, const QString &infotext);
     QWizardPage *tutorial_directory(const int ntutorial);
-    QWizardPage *tutorial_finish(const int ntutorial);
     void setup_tutorial(int ntutorial, const QString &dir, bool purgedir, bool getsolution);
     void purge_inspect_list();
     bool eventFilter(QObject *watched, QEvent *event) override;

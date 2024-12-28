@@ -1564,7 +1564,7 @@ void LammpsGui::tutorial_web()
     QDesktopServices::openUrl(QUrl("https://lammpstutorials.github.io/"));
 }
 
-QWizardPage *LammpsGui::tutorial_intro(const int ntutorial)
+QWizardPage *LammpsGui::tutorial_intro(const int ntutorial, const QString &infotext)
 {
     auto *page = new QWizardPage;
     page->setTitle(QString("Getting Started With Tutorial %1").arg(ntutorial));
@@ -1573,30 +1573,14 @@ QWizardPage *LammpsGui::tutorial_intro(const int ntutorial)
 
     // XXX TODO: update URL to published tutorial DOI
     auto *label = new QLabel(
-        QString("<p>This wizard will help you to select and populate a folder with materials "
-                "required to work through tutorial %1 from the LAMMPS tutorials article by "
-                "Simon Gravelle, Jake Gissinger, and Axel Kohlmeyer.</p>\nThe materials for this "
-                "tutorial are downloaded from:<br><b><a "
+        QString("<p>This dialog will help you to select and populate a folder with materials "
+                "required to work through tutorial ") +
+        QString::number(ntutorial) +
+        QString(" from the LAMMPS tutorials article by Simon Gravelle, Jake Gissinger, and Axel "
+                "Kohlmeyer.</p><p>The materials for this tutorial are downloaded from:<br><b><a "
                 "href=\"https://github.com/lammpstutorials/lammpstutorials-article\">github.com/"
-                "lammpstutorials/lammpstutorials-article</a></b></p><br>\n<hr width=\"33%\"\\>\n<p "
-                "align=\"center\">Click on the \"Next\" button to begin.</p>")
-            .arg(ntutorial));
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    page->setLayout(layout);
-    return page;
-}
-
-QWizardPage *LammpsGui::tutorial_info(const int ntutorial, const QString &infotext)
-{
-    auto *page = new QWizardPage;
-    page->setTitle(QString("Contents of Tutorial %1").arg(ntutorial));
-    page->setPixmap(QWizard::WatermarkPixmap,
-                    QPixmap(QString(":/icons/tutorial%1-logo.png").arg(ntutorial)));
-
-    auto *label = new QLabel(infotext);
+                "lammpstutorials/lammpstutorials-article</a></b></p>") +
+        infotext);
     label->setWordWrap(true);
 
     auto *layout = new QVBoxLayout;
@@ -1616,9 +1600,9 @@ QWizardPage *LammpsGui::tutorial_directory(const int ntutorial)
     auto *label = new QLabel(
         QString("<p>Select a directory to store the files for tutorial %1.  The directory will be "
                 "created if necessary and LAMMPS-GUI will download the files required for the "
-                "tutorial.</p>\n<p>If selected, an existing directory may be "
-                "cleared.</p>\n<p>Also, available files of the tutorial solution may be downloaded "
-                "to a folder \"solution\", if requested.</p>\n<hr width=\"33%\">\n")
+                "tutorial.  If selected, an existing directory may be cleared from old "
+                "files.</p>\n<p>Available files of the tutorial solution may be downloaded to a "
+                "sub-folder \"solution\", if requested.</p>\n")
             .arg(ntutorial));
     label->setWordWrap(true);
 
@@ -1669,30 +1653,16 @@ QWizardPage *LammpsGui::tutorial_directory(const int ntutorial)
     grid->setColumnStretch(0, 0);
     grid->setColumnStretch(1, 100);
 
+    auto *label2 = new QLabel(
+        QString("<hr width=\"33%\">\n<p align=\"center\">Click on "
+                "the \"Finish\" button to complete the setup and start the download.</p>"));
+    label->setWordWrap(true);
+
     auto *layout = new QVBoxLayout(frame);
     layout->addWidget(label);
     layout->addLayout(dirlayout);
     layout->addLayout(grid);
-
-    page->setLayout(layout);
-    return page;
-}
-
-QWizardPage *LammpsGui::tutorial_finish(const int ntutorial)
-{
-    auto *page = new QWizardPage;
-    page->setTitle(QString("Start Tutorial %1").arg(ntutorial));
-    page->setPixmap(QWizard::WatermarkPixmap,
-                    QPixmap(QString(":/icons/tutorial%1-logo.png").arg(ntutorial)));
-    auto *label = new QLabel(QString("<p align=\"center\">You are now ready to start tutorial "
-                                     "%1.</p>\n<hr width=\"33%\"\\>\n<p align=\"center\">Click on "
-                                     "the \"Finish\" button to complete the setup.</p>")
-                                 .arg(ntutorial));
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    layout->setStretch(0, 100);
+    layout->addWidget(label2);
 
     page->setLayout(layout);
     return page;
@@ -1709,10 +1679,8 @@ void LammpsGui::start_tutorial1()
                 "and how to create visualizations of your system</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
-    wizard->addPage(tutorial_intro(1));
-    wizard->addPage(tutorial_info(1, infotext));
+    wizard->addPage(tutorial_intro(1, infotext));
     wizard->addPage(tutorial_directory(1));
-    wizard->addPage(tutorial_finish(1));
     wizard->setWindowTitle("Tutorial 1 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
@@ -1731,10 +1699,8 @@ void LammpsGui::start_tutorial2()
                 "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
-    wizard->addPage(tutorial_intro(2));
-    wizard->addPage(tutorial_info(2, infotext));
+    wizard->addPage(tutorial_intro(2, infotext));
     wizard->addPage(tutorial_directory(2));
-    wizard->addPage(tutorial_finish(2));
     wizard->setWindowTitle("Tutorial 2 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
@@ -1754,10 +1720,8 @@ void LammpsGui::start_tutorial3()
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
 
     wizard->setFont(font());
-    wizard->addPage(tutorial_intro(3));
-    wizard->addPage(tutorial_info(3, infotext));
+    wizard->addPage(tutorial_intro(3, infotext));
     wizard->addPage(tutorial_directory(3));
-    wizard->addPage(tutorial_finish(3));
     wizard->setWindowTitle("Tutorial 3 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
@@ -1776,10 +1740,8 @@ void LammpsGui::start_tutorial4()
                 "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
-    wizard->addPage(tutorial_intro(4));
-    wizard->addPage(tutorial_info(4, infotext));
+    wizard->addPage(tutorial_intro(4, infotext));
     wizard->addPage(tutorial_directory(4));
-    wizard->addPage(tutorial_finish(4));
     wizard->setWindowTitle("Tutorial 4 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
@@ -1798,10 +1760,8 @@ void LammpsGui::start_tutorial5()
                 "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
-    wizard->addPage(tutorial_intro(5));
-    wizard->addPage(tutorial_info(5, infotext));
+    wizard->addPage(tutorial_intro(5, infotext));
     wizard->addPage(tutorial_directory(5));
-    wizard->addPage(tutorial_finish(5));
     wizard->setWindowTitle("Tutorial 5 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
@@ -1820,10 +1780,8 @@ void LammpsGui::start_tutorial6()
                 "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
-    wizard->addPage(tutorial_intro(6));
-    wizard->addPage(tutorial_info(6, infotext));
+    wizard->addPage(tutorial_intro(6, infotext));
     wizard->addPage(tutorial_directory(6));
-    wizard->addPage(tutorial_finish(6));
     wizard->setWindowTitle("Tutorial 6 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
@@ -1842,10 +1800,8 @@ void LammpsGui::start_tutorial7()
                 "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
-    wizard->addPage(tutorial_intro(7));
-    wizard->addPage(tutorial_info(7, infotext));
+    wizard->addPage(tutorial_intro(7, infotext));
     wizard->addPage(tutorial_directory(7));
-    wizard->addPage(tutorial_finish(7));
     wizard->setWindowTitle("Tutorial 7 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
@@ -1864,10 +1820,8 @@ void LammpsGui::start_tutorial8()
                 "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
-    wizard->addPage(tutorial_intro(8));
-    wizard->addPage(tutorial_info(8, infotext));
+    wizard->addPage(tutorial_intro(8, infotext));
     wizard->addPage(tutorial_directory(8));
-    wizard->addPage(tutorial_finish(8));
     wizard->setWindowTitle("Tutorial 8 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
