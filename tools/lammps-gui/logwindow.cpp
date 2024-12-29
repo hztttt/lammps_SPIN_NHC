@@ -115,16 +115,20 @@ void LogWindow::stop_run()
 void LogWindow::next_warning()
 {
     auto *doc  = document();
+#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
+    auto regex = QRegExp(QStringLiteral("^(ERROR|WARNING).*$"));
+#else
     auto regex = QRegularExpression(QStringLiteral("^(ERROR|WARNING).*$"));
+#endif
 
     if (warnings->get_nwarnings() > 0) {
         // wrap around search
-        if (!this->find(regex)) {
-            this->moveCursor(QTextCursor::Start, QTextCursor::MoveAnchor);
-            this->find(regex);
+        if (!find(regex)) {
+            moveCursor(QTextCursor::Start, QTextCursor::MoveAnchor);
+            find(regex);
         }
         // move cursor to unselect
-        this->moveCursor(QTextCursor::NextBlock, QTextCursor::MoveAnchor);
+        moveCursor(QTextCursor::NextBlock, QTextCursor::MoveAnchor);
     }
 }
 
