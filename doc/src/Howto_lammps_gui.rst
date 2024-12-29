@@ -284,7 +284,8 @@ warnings or errors in the LAMMPS output, they are highlighted by using
 bold text colored in red.  There is a small panel at the bottom center
 of the *Output* window showing how many warnings and errors were
 detected and how many lines the entire output has.  By clicking on the
-button on the right with the warning symbol, you can jump to the next
+button on the right with the warning symbol or by using the keyboard
+shortcut `Ctrl-N` (`Command-N` on macOS), you can jump to the next
 line with a warning or error.
 
 By default, the *Output* window is replaced each time a run is started.

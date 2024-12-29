@@ -79,6 +79,8 @@ LogWindow::LogWindow(const QString &_filename, QWidget *parent) :
     connect(action, &QShortcut::activated, this, &LogWindow::extract_yaml);
     action = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Q), this);
     connect(action, &QShortcut::activated, this, &LogWindow::quit);
+    action = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_N), this);
+    connect(action, &QShortcut::activated, this, &LogWindow::next_warning);
     action = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Slash), this);
     connect(action, &QShortcut::activated, this, &LogWindow::stop_run);
 
@@ -213,9 +215,16 @@ void LogWindow::contextMenuEvent(QContextMenuEvent *event)
         action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Y));
         connect(action, &QAction::triggered, this, &LogWindow::extract_yaml);
     }
+    action = menu->addAction("&Jump to next warning or error", this, &LogWindow::next_warning);
+    action->setIcon(QIcon(":/icons/warning.png"));
+    action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_N));
+    menu->addSeparator();
     action = menu->addAction("&Close Window", this, &QWidget::close);
     action->setIcon(QIcon(":/icons/window-close.png"));
     action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_W));
+    action = menu->addAction("&Quit LAMMPS-GUI", this, &LogWindow::quit);
+    action->setIcon(QIcon(":/icons/application-exit.png"));
+    action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Q));
     menu->exec(event->globalPos());
     delete menu;
 }
