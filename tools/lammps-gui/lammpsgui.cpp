@@ -1995,6 +1995,16 @@ static const QString geturl =
 
 void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, bool getsolution)
 {
+    constexpr int BUFLEN = 1024;
+    char errorbuf[BUFLEN];
+
+    if (!lammps.config_has_curl_support()) {
+        QMessageBox::critical(this, "LAMMPS-GUI tutorial files download error",
+                              "<p align=\"center\">LAMMPS must be compiled with libcurl to support "
+                              "downloading files</p>");
+        return;
+    }
+
     QDir directory(dir);
     directory.cd(dir);
 
@@ -2008,12 +2018,10 @@ void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, boo
     // download and process manifest for selected tutorial
     // must check for error after download, e.g. when there is no network.
 
-    lammps.command(geturl.arg(tutno).arg(".manifest").toStdString().c_str());
+    lammps.command(geturl.arg(tutno).arg(".manifest"));
     if (lammps.has_error()) {
-        constexpr int BUFLEN = 1024;
-        char errorbuf[BUFLEN];
         lammps.get_last_error_message(errorbuf, BUFLEN);
-        QMessageBox::critical(this, "LAMMPS-GUI download error", QString(errorbuf));
+        QMessageBox::critical(this, "LAMMPS-GUI tutorial files download error", QString(errorbuf));
         return;
     }
 

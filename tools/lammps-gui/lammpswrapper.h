@@ -62,6 +62,7 @@ public:
 
     bool config_accelerator(const char *package, const char *category, const char *setting) const;
     bool config_has_package(const char *pkg) const;
+    bool config_has_curl_support() const;
     bool has_gpu_device() const;
 
     bool load_lib(const char *lammpslib);
