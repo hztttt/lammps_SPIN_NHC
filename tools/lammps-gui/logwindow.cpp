@@ -62,9 +62,14 @@ LogWindow::LogWindow(const QString &_filename, QWidget *parent) :
 
     panel->addWidget(summary);
     panel->addWidget(button);
+    panel->setStretchFactor(summary, 10);
+    panel->setStretchFactor(button, 1);
 
     grid->addItem(spacer, 0, 0, 1, 3);
     grid->addWidget(frame, 1, 1, 1, 1);
+    grid->setColumnStretch(0, 5);
+    grid->setColumnStretch(1, 1);
+    grid->setColumnStretch(2, 5);
 
     warnings = new FlagWarnings(summary, document());
 
@@ -114,7 +119,7 @@ void LogWindow::stop_run()
 
 void LogWindow::next_warning()
 {
-    auto *doc  = document();
+    auto *doc = document();
 #if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
     auto regex = QRegExp(QStringLiteral("^(ERROR|WARNING).*$"));
 #else
