@@ -1709,16 +1709,13 @@ void LammpsGui::start_tutorial2()
 void LammpsGui::start_tutorial3()
 {
     if (wizard) delete wizard;
-    wizard = new TutorialWizard(3);
-    const auto infotext =
-        QString("<p>In tutorial 3 you will learn about setting up a simulation for a molecular "
-                "system with bonds.  The target is to simulate a carbon nanotube with a "
-                "conventional molecular force field under growing strain and observe the response "
-                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
-                "This is then compared to simulating the same system with a reactive force field "
-                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
-                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
-
+    wizard              = new TutorialWizard(3);
+    const auto infotext = QString(
+        "<p>In tutorial 3 you will learn setting up a multi-component, a polymer molecule embedded "
+        "in liquid water.  The model employs a long-range Coulomb solver and a stretching force is "
+        "applied to the polymer. This is used to demonstrate how to use the type label facility in "
+        "LAMMPS to make components more generic.</p><hr width=\"33%\"\\>\n<p "
+        "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
     wizard->addPage(tutorial_intro(3, infotext));
     wizard->addPage(tutorial_directory(3));
@@ -1732,12 +1729,11 @@ void LammpsGui::start_tutorial4()
     if (wizard) delete wizard;
     wizard = new TutorialWizard(4);
     const auto infotext =
-        QString("<p>In tutorial 4 you will learn about setting up a simulation for a molecular "
-                "system with bonds.  The target is to simulate a carbon nanotube with a "
-                "conventional molecular force field under growing strain and observe the response "
-                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
-                "This is then compared to simulating the same system with a reactive force field "
-                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+        QString("<p>In tutorial 4 an electrolyte is simulated while confined between two walls and "
+                "thus illustrating the specifics of simulating systems with fluid-solid "
+                "interfaces.  The water model is more complex than in tutorial 3 and also a "
+                "non-equilibrium MD simulation is performed by imposing shearing forces on the "
+                "electrolyte through moving the walls.</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
     wizard->addPage(tutorial_intro(4, infotext));
@@ -1752,12 +1748,10 @@ void LammpsGui::start_tutorial5()
     if (wizard) delete wizard;
     wizard = new TutorialWizard(5);
     const auto infotext =
-        QString("<p>In tutorial 5 you will learn about setting up a simulation for a molecular "
-                "system with bonds.  The target is to simulate a carbon nanotube with a "
-                "conventional molecular force field under growing strain and observe the response "
-                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
-                "This is then compared to simulating the same system with a reactive force field "
-                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+        QString("<p>Tutorial 5 demonstrates the use of the ReaxFF reactive force field which "
+                "includes a dynamic bond topology based on determining the bond order.  ReaxFF "
+                "includes charge equilibration (QEq) and thus the atoms can change their partial "
+                "charges according to the local environment.</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
     wizard->addPage(tutorial_intro(5, infotext));
@@ -1770,15 +1764,12 @@ void LammpsGui::start_tutorial5()
 void LammpsGui::start_tutorial6()
 {
     if (wizard) delete wizard;
-    wizard = new TutorialWizard(6);
-    const auto infotext =
-        QString("<p>In tutorial 6 you will learn about setting up a simulation for a molecular "
-                "system with bonds.  The target is to simulate a carbon nanotube with a "
-                "conventional molecular force field under growing strain and observe the response "
-                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
-                "This is then compared to simulating the same system with a reactive force field "
-                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
-                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard              = new TutorialWizard(6);
+    const auto infotext = QString(
+        "<p>In tutorial 6 an MD simulation is combined with Monte Carlo (MC) steps to implement "
+        "a Grand Canonical ensemble.  This represents an open system where atoms or "
+        "molecules may be exchanged with a reservoir.</p><hr width=\"33%\"\\>\n<p "
+        "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
     wizard->addPage(tutorial_intro(6, infotext));
     wizard->addPage(tutorial_directory(6));
@@ -1792,13 +1783,12 @@ void LammpsGui::start_tutorial7()
     if (wizard) delete wizard;
     wizard = new TutorialWizard(7);
     const auto infotext =
-        QString("<p>In tutorial 7 you will learn about setting up a simulation for a molecular "
-                "system with bonds.  The target is to simulate a carbon nanotube with a "
-                "conventional molecular force field under growing strain and observe the response "
-                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
-                "This is then compared to simulating the same system with a reactive force field "
-                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
-                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+        QString("<p>In tutorial 7 you will determine the height of a free energy barrier through "
+                "using umbrella sampling.  This is one of many advanced methods using specific "
+                "reaction coordinates or so-called collective variables to map out relevant parts "
+                "of free energy landscapes, where unbiased MD or MC simulation may take too "
+                "long.</p><hr width=\"33%\"\\>\n<p align=\"center\">Click on the \"Next\" button "
+                "to select a folder.</p>");
     wizard->setFont(font());
     wizard->addPage(tutorial_intro(7, infotext));
     wizard->addPage(tutorial_directory(7));
@@ -1812,12 +1802,10 @@ void LammpsGui::start_tutorial8()
     if (wizard) delete wizard;
     wizard = new TutorialWizard(8);
     const auto infotext =
-        QString("<p>In tutorial 8 you will learn about setting up a simulation for a molecular "
-                "system with bonds.  The target is to simulate a carbon nanotube with a "
-                "conventional molecular force field under growing strain and observe the response "
-                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
-                "This is then compared to simulating the same system with a reactive force field "
-                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+        QString("<p>In tutorial 8 a CNT embedded in a Nylon-6,6 polymer melt is simulated.  The "
+                "REACTER protocol is used to model the polymerization of Nylon without having to "
+                "employ far more computationally demanding models like ReaxFF.  Also, the "
+                "formation of water molecules is tracked over time.</p><hr width=\"33%\"\\>\n<p "
                 "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
     wizard->addPage(tutorial_intro(8, infotext));
