@@ -1223,7 +1223,7 @@ void LammpsGui::do_run(bool use_buffer)
 
     // define "gui_run" variable set to run_counter value
     lammps.command("variable gui_run delete");
-    lammps.command(std::string("variable gui_run index " + std::to_string(run_counter)).c_str());
+    lammps.command(std::string("variable gui_run index " + std::to_string(run_counter)));
     if (use_buffer) {
         // always add final newline since the text edit widget does not do it
         char *input = mystrdup(ui->textEdit->toPlainText() + "\n");
@@ -1311,7 +1311,7 @@ void LammpsGui::render_image()
                 selection += "\nrun 0 pre yes post no";
                 ui->textEdit->setTextCursor(saved);
                 lammps.command("clear");
-                lammps.commands_string(selection.toStdString().c_str());
+                lammps.commands_string(selection);
                 // clear any possible error status
                 lammps.get_last_error_message(nullptr, 0);
             }
@@ -2013,7 +2013,7 @@ void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, boo
 
     start_lammps();
     lammps.command("clear");
-    lammps.command(QString("shell cd " + dir).toStdString().c_str());
+    lammps.command(QString("shell cd " + dir));
 
     // download and process manifest for selected tutorial
     // must check for error after download, e.g. when there is no network.
@@ -2021,13 +2021,20 @@ void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, boo
     lammps.command(geturl.arg(tutno).arg(".manifest"));
     if (lammps.has_error()) {
         lammps.get_last_error_message(errorbuf, BUFLEN);
-        QMessageBox::critical(this, "LAMMPS-GUI tutorial files download error", QString(errorbuf));
+        QMessageBox::critical(this, "LAMMPS-GUI tutorial download error", QString(errorbuf));
         return;
     }
 
     QFile manifest(".manifest");
     QString line, first;
-    QList<QString> downloads;
+    struct DownloadItem {
+        DownloadItem(int _n, const QString &_f) : ntutorial(_n), fname(_f) {}
+
+        int ntutorial;
+        QString fname;
+    };
+
+    QList<DownloadItem> downloads;
     if (manifest.open(QIODevice::ReadOnly)) {
         while (!manifest.atEnd()) {
             line = (const char *)manifest.readLine();
@@ -2039,29 +2046,55 @@ void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, boo
             // file in subfolder
             if (line.contains('/')) {
                 if (getsolution && line.startsWith("solution")) {
-                    downloads.append(geturl.arg(tutno).arg(line));
+                    downloads.append(DownloadItem(tutno, line));
                 }
             } else {
                 // first file is the initial template
                 if (first.isEmpty()) first = line;
-                downloads.append(geturl.arg(tutno).arg(line));
+                downloads.append(DownloadItem(tutno, line));
             }
         }
         manifest.close();
         manifest.remove();
     }
+
     int i   = 0;
     int num = downloads.size();
     if (!num) num = 1;
+
     progress->setValue(0);
     progress->show();
     dirstatus->hide();
-    for (const auto &file : downloads) {
+
+    for (const auto &item : downloads) {
         ++i;
         status->setText(QString("Downloading file %1 of %2").arg(i).arg(num));
-        status->repaint();
-        lammps.command(file);
         progress->setValue((int)((double)i / ((double)num) * 1000.0));
+        status->repaint();
+        lammps.command(geturl.arg(item.ntutorial).arg(item.fname));
+
+        // download failed. abort, restore status line, and launch error dialog
+        if (lammps.has_error()) {
+            status->setText("Error.");
+            progress->hide();
+            dirstatus->show();
+            status->repaint();
+            lammps.get_last_error_message(errorbuf, BUFLEN);
+            QMessageBox::critical(this, "LAMMPS-GUI tutorial download error", QString(errorbuf));
+            return;
+        }
+
+        // check if download is a placeholder for a symbolic link and make a copy instead.
+        QFile dlfile(item.fname);
+        QFileInfo dlpath(item.fname);
+        if (dlfile.open(QIODevice::ReadOnly)) {
+            line = (const char *)dlfile.readLine();
+            line = line.trimmed();
+            dlfile.close();
+
+            if (line == QString("../") + dlpath.fileName())
+                lammps.command(QString("shell cp %1 %2").arg(dlpath.fileName()).arg(item.fname));
+        }
     }
     progress->setValue(1000);
     status->setText("Ready.");
