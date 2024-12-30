@@ -1578,8 +1578,8 @@ QWizardPage *LammpsGui::tutorial_intro(const int ntutorial, const QString &infot
         QString::number(ntutorial) +
         QString(" from the LAMMPS tutorials article by Simon Gravelle, Jake Gissinger, and Axel "
                 "Kohlmeyer.</p><p>The materials for this tutorial are downloaded from:<br><b><a "
-                "href=\"https://github.com/lammpstutorials/lammpstutorials-article\">github.com/"
-                "lammpstutorials/lammpstutorials-article</a></b></p>") +
+                "href=\"https://github.com/lammpstutorials/lammpstutorials-article\">https://"
+                "github.com/lammpstutorials/lammpstutorials-article</a></b></p>") +
         infotext);
     label->setWordWrap(true);
 
