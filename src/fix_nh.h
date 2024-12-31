@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -50,11 +50,12 @@ class FixNH : public Fix {
   double t0;      // reference temperature
                   // used for barostat mass
   double t_start, t_stop;
-  double t_current, t_target, ke_target;
+  double t_current, t_target, ke_target, ke_target_spin;
   double t_freq;
 
   int tstat_flag;    // 1 if control T
   int pstat_flag;    // 1 if control P
+  int tstat_spin_flag;    // 1 if control spin
 
   int pstyle, pcouple, allremap;
   int p_flag[6];    // 1 if control P on this dim, 0 if not
@@ -66,8 +67,9 @@ class FixNH : public Fix {
   double drag, tdrag_factor;     // drag factor on particle thermostat
   double pdrag_factor;           // drag factor on barostat
   int kspace_flag;               // 1 if KSpace invoked, 0 if not
+  int nrigid;                    // number of rigid fixes
   int dilate_group_bit;          // mask for dilation group
-  std::vector<Fix *> rfix;       // list of rigid fixes
+  int *rfix;                     // indices of rigid fixes
   char *id_dilate;               // group name to dilate
   class Irregular *irregular;    // for migrating atoms after box flips
 
@@ -85,6 +87,18 @@ class FixNH : public Fix {
   double *eta, *eta_dot;    // chain thermostat for particles
   double *eta_dotdot;
   double *eta_mass;
+  // spin
+  double *etas, *etas_dot;    // chain thermostat for particles
+  double *etas_dotdot;
+  double *etas_mass;
+  double **s;
+  double r_ke_all, s_ke_all;
+  double **s_dotdot;
+  double  *is_spin;
+  int spin_dof;
+  double mass, rands;
+  int lattice_flag;
+
   int mtchain;                 // length of chain
   int mtchain_default_flag;    // 1 = mtchain is default
 
@@ -111,6 +125,7 @@ class FixNH : public Fix {
   double mtk_term1, mtk_term2;    // Martyna-Tobias-Klein corrections
 
   int eta_mass_flag;      // 1 if eta_mass updated, 0 if not.
+  int etas_mass_flag;      // 1 if eta_mass updated, 0 if not.
   int omega_mass_flag;    // 1 if omega_mass updated, 0 if not.
   int etap_mass_flag;     // 1 if etap_mass updated, 0 if not.
   int dipole_flag;        // 1 if dipole is updated, 0 if not.
@@ -128,10 +143,14 @@ class FixNH : public Fix {
   void couple();
   virtual void remap();
   void nhc_temp_integrate();
+  void nhc_spin_integrate();
   void nhc_press_integrate();
 
   virtual void nve_x();    // may be overwritten by child classes
   virtual void nve_v();
+  void nve_v_spin();
+  void nve_spin();
+  void nh_vs_temp();
   virtual void nh_v_press();
   virtual void nh_v_temp();
   virtual void compute_temp_target();

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,10 +21,9 @@
 
 namespace LAMMPS_NS {
 
-// forward declarations
+// forward declaration
 
 class AtomVec;
-class Molecule;
 
 class Atom : protected Pointers {
  public:
@@ -33,8 +32,6 @@ class Atom : protected Pointers {
   enum { DOUBLE, INT, BIGINT };
   enum { GROW = 0, RESTART = 1, BORDER = 2 };
   enum { ATOMIC = 0, MOLECULAR = 1, TEMPLATE = 2 };
-  enum { ATOM = 0, BOND = 1, ANGLE = 2, DIHEDRAL = 3, IMPROPER = 4 };
-  enum { NUMERIC = 0, LABELS = 1 };
   enum { MAP_NONE = 0, MAP_ARRAY = 1, MAP_HASH = 2, MAP_YES = 3 };
 
   // atom counts
@@ -83,7 +80,6 @@ class Atom : protected Pointers {
   double **omega, **angmom, **torque;
   int *ellipsoid, *line, *tri, *body;
   double **quat;
-  double *temperature, *heatflow;
 
   // molecular systems
 
@@ -117,7 +113,7 @@ class Atom : protected Pointers {
 
   // SPIN package
 
-  double **sp, **fm, **fm_long;
+  double **sp, **fm, **fm_long, **v_s, **s_real, *s_mass, *is_spin;
 
   // EFF and AWPMD packages
 
@@ -146,6 +142,12 @@ class Atom : protected Pointers {
   double *edpd_cv;    // heat capacity
   int cc_species;
 
+  // MESONT package
+
+  double *length;
+  int *buckling;
+  tagint **bond_nt;
+
   // MACHDYN package
 
   double *contact_radius;
@@ -155,27 +157,14 @@ class Atom : protected Pointers {
   double *eff_plastic_strain_rate;
   double *damage;
 
-  // RHEO package
-
-  int *rheo_status;
-  double *conductivity;
-  double *pressure;
-  double *viscosity;
-
   // SPH package
 
   double *rho, *drho, *esph, *desph, *cv;
   double **vest;
 
-  // AMOEBA package
-
-  int *nspecial15;       // # of 1-5 neighs
-  tagint **special15;    // IDs of 1-5 neighs of each atom
-  int maxspecial15;      // special15[nlocal][maxspecial15]
-
   // DIELECTRIC package
 
-  double *area, *ed, *em, *epsilon, *curvature, *q_scaled;
+  double *area, *ed, *em, *epsilon, *curvature, *q_unscaled;
 
   // end of customization section
   // --------------------------------------------------------------------
@@ -186,18 +175,15 @@ class Atom : protected Pointers {
   // most are existence flags for per-atom vectors and arrays
   // 1 if variable is used, 0 if not
 
-  int labelmapflag, types_style;
-  int ellipsoid_flag, line_flag, tri_flag, body_flag;
+  int sphere_flag, ellipsoid_flag, line_flag, tri_flag, body_flag;
   int peri_flag, electron_flag;
   int wavepacket_flag, sph_flag;
 
   int molecule_flag, molindex_flag, molatom_flag;
   int q_flag, mu_flag;
   int rmass_flag, radius_flag, omega_flag, torque_flag, angmom_flag, quat_flag;
-  int temperature_flag, heatflow_flag;
   int vfrac_flag, spin_flag, eradius_flag, ervel_flag, erforce_flag;
   int cs_flag, csforce_flag, vforce_flag, ervelforce_flag, etag_flag;
-  int rheo_status_flag, conductivity_flag, pressure_flag, viscosity_flag;
   int rho_flag, esph_flag, cv_flag, vest_flag;
   int dpd_flag, edpd_flag, tdpd_flag;
   int mesont_flag;
@@ -212,10 +198,6 @@ class Atom : protected Pointers {
   int smd_flag, damage_flag;
   int contact_radius_flag, smd_data_9_flag, smd_stress_flag;
   int eff_plastic_strain_flag, eff_plastic_strain_rate_flag;
-
-  // AMOEBA package
-
-  int nspecial15_flag;
 
   // Peridynamics scale factor, used by dump cfg
 
@@ -250,7 +232,6 @@ class Atom : protected Pointers {
   int *icols, *dcols;
   char **ivname, **dvname, **ianame, **daname;
   int nivector, ndvector, niarray, ndarray;
-  int *ivghost, *dvghost, *iaghost, *daghost;
 
   // molecule templates
   // each template can be a set of consecutive molecules
@@ -258,11 +239,7 @@ class Atom : protected Pointers {
   // 1st molecule in template stores nset = # in set
 
   int nmolecule;
-  Molecule **molecules;
-
-  // type label maps
-
-  class LabelMap *lmap;
+  class Molecule **molecules;
 
   // extra peratom info in restart file destined for fix & diag
 
@@ -321,10 +298,9 @@ class Atom : protected Pointers {
   void create_avec(const std::string &, int, char **, int);
   virtual AtomVec *new_avec(const std::string &, int, int &);
 
-  virtual void init();
+  void init();
   void setup();
 
-  std::string get_style();
   AtomVec *style_match(const char *);
   void modify_params(int, char **);
   void tag_check();
@@ -335,20 +311,20 @@ class Atom : protected Pointers {
 
   int parse_data(const char *);
 
-  virtual void deallocate_topology();
+  void deallocate_topology();
 
-  void data_atoms(int, char *, tagint, tagint, int, int, double *, int, int *, int);
+  void data_atoms(int, char *, tagint, tagint, int, int, double *);
   void data_vels(int, char *, tagint);
-  void data_bonds(int, char *, int *, tagint, int, int, int *);
-  void data_angles(int, char *, int *, tagint, int, int, int *);
-  void data_dihedrals(int, char *, int *, tagint, int, int, int *);
-  void data_impropers(int, char *, int *, tagint, int, int, int *);
+  void data_bonds(int, char *, int *, tagint, int);
+  void data_angles(int, char *, int *, tagint, int);
+  void data_dihedrals(int, char *, int *, tagint, int);
+  void data_impropers(int, char *, int *, tagint, int);
   void data_bonus(int, char *, AtomVec *, tagint);
   void data_bodies(int, char *, AtomVec *, tagint);
   void data_fix_compute_variable(int, int);
 
   virtual void allocate_type_arrays();
-  void set_mass(const char *, int, const char *, int, int, int *);
+  void set_mass(const char *, int, const char *, int);
   void set_mass(const char *, int, int, double);
   void set_mass(const char *, int, int, char **);
   void set_mass(double *);
@@ -358,11 +334,8 @@ class Atom : protected Pointers {
   int shape_consistency(int, double &, double &, double &);
 
   void add_molecule(int, char **);
-  int find_molecule(const char *);
-  std::vector<Molecule *> get_molecule_by_id(const std::string &);
-  void add_molecule_atom(Molecule *, int, int, tagint);
-
-  void add_label_map();
+  int find_molecule(char *);
+  void add_molecule_atom(class Molecule *, int, int, tagint);
 
   void first_reorder();
   virtual void sort();
@@ -372,13 +345,13 @@ class Atom : protected Pointers {
   void update_callback(int);
 
   int find_custom(const char *, int &, int &);
-  int find_custom_ghost(const char *, int &, int &, int &);
-  virtual int add_custom(const char *, int, int, int ghost = 0);
+  virtual int add_custom(const char *, int, int);
   virtual void remove_custom(int, int, int);
+
+  virtual void sync_modify(ExecutionSpace, unsigned int, unsigned int) {}
 
   void *extract(const char *);
   int extract_datatype(const char *);
-  int extract_size(const char *, int);
 
   inline int *get_map_array() { return map_array; };
   inline int get_map_size() { return map_tag_max + 1; };
@@ -394,7 +367,7 @@ class Atom : protected Pointers {
   // map lookup function inlined for efficiency
   // return -1 if no map defined
 
-  virtual inline int map(tagint global)
+  inline int map(tagint global)
   {
     if (map_style == 1)
       return map_array[global];
@@ -407,10 +380,10 @@ class Atom : protected Pointers {
   virtual void map_init(int check = 1);
   virtual void map_clear();
   virtual void map_set();
-  virtual void map_one(tagint, int);
+  void map_one(tagint, int);
   int map_style_set();
   virtual void map_delete();
-  virtual int map_find_hash(tagint);
+  int map_find_hash(tagint);
 
  protected:
   // global to local ID mapping
